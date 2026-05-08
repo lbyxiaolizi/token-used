@@ -348,7 +348,7 @@ index 71e738c..7f70b24 100644
      }
  }
 diff --git a/Sources/UsageBoardCore/PluginExecutor.swift b/Sources/UsageBoardCore/PluginExecutor.swift
-index cabe8d4..00c184d 100644
+index cabe8d4..3830496 100644
 --- a/Sources/UsageBoardCore/PluginExecutor.swift
 +++ b/Sources/UsageBoardCore/PluginExecutor.swift
 @@ -3,7 +3,7 @@
@@ -356,7 +356,7 @@ index cabe8d4..00c184d 100644
      public var timeoutSeconds: TimeInterval
  
 -    public init(timeoutSeconds: TimeInterval = 15) {
-+    public init(timeoutSeconds: TimeInterval = 30) {
++    public init(timeoutSeconds: TimeInterval = 180) {
          self.timeoutSeconds = timeoutSeconds
      }
  
