@@ -6,6 +6,22 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE) ![Platform](https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey)
 
+<p align="center">
+  <img src="images/menubar-panel.png" alt="UsageBoard 菜单栏面板" width="425"><br>
+  <sub>今日总览（hero 合计 + 各模型行 + 右列 token 数）与单 CLI 面板</sub>
+</p>
+
+<details>
+<summary>📊 点开看 7 天图表展开形态</summary>
+
+<p align="center">
+  <img src="images/today-overview-expanded.png" alt="今日总览 7 天堆叠柱状图" width="425">
+  <img src="images/cli-panels-expanded.png" alt="单 CLI 面板的 7 天图表" width="425"><br>
+  <sub>点 panel 底部的箭头展开按模型堆叠的 7 天柱状图</sub>
+</p>
+
+</details>
+
 ---
 
 ## 特性
@@ -64,7 +80,7 @@ sed "s|__HOME__|$HOME|g" examples/config.example.json > "$HOME/Library/Applicati
 # 5. 打开 UsageBoard，点菜单栏图标，应该看到 4 张 panel
 ```
 
-逐步说明（设置面板配置、排错、卸载）见 [docs/INSTALL.md](docs/INSTALL.md)。
+遇到问题见下文 [排错](#排错)。
 
 ---
 
@@ -106,9 +122,9 @@ sed "s|__HOME__|$HOME|g" examples/config.example.json > "$HOME/Library/Applicati
 
 ### 进度条配色含义
 
-四个插件的进度条**颜色规则不一样**，是设计如此——见 [docs/COLORS.md](docs/COLORS.md)。简版：
-- 今日总览：颜色按"该模型占今日总量的百分比"——红≥50%、橙≥25%、蓝<25%
-- 单 CLI：颜色按"今天用量 ÷ 期内峰值日"——红≥100%（破峰）、橙≥80%、蓝<80%
+四个插件的进度条**颜色规则不一样**，是设计如此：
+- **今日总览**：颜色按"该模型占今日总量的百分比"——红≥50%、橙≥25%、蓝<25%
+- **单 CLI**：颜色按"今天用量 ÷ 期内峰值日"——红≥100%（破峰）、橙≥80%、蓝<80%
 
 ---
 
@@ -126,10 +142,7 @@ TokenUsed/
 ├── examples/
 │   └── config.example.json             # 已注册四个插件的 UsageBoard 完整配置
 ├── widget/                             # 原生 macOS WidgetKit 应用（Xcode 项目，见状态说明）
-├── docs/
-│   ├── INSTALL.md                      # 详细安装/卸载步骤
-│   ├── COLORS.md                       # 各插件配色规则的差异
-│   └── WIDGET.md                       # 桌面 widget 设计文档
+├── images/                             # README 截图
 ├── README.md                           # 英文文档
 ├── README_ZH.md                        # 中文文档（本文件）
 └── LICENSE                             # MIT
@@ -141,7 +154,7 @@ TokenUsed/
 
 `widget/` 下是一个完整的 WidgetKit + SwiftUI Xcode 项目（Small / Medium / Large 三尺寸，Swift Charts 7 天柱状图）。本地能 build 能跑，但 **macOS 15+ Sequoia / Tahoe** 的系统 daemon `chronod` 拒绝把 Personal Team 签的 widget extension 加进桌面 widget gallery——**需要付费 [Apple Developer Program](https://developer.apple.com/programs/)（$99/年）**才能真正用上。
 
-不打算付费的话，菜单栏的 UsageBoard 面板已经覆盖所有数据。详见 [docs/WIDGET.md](docs/WIDGET.md)，里面记录了完整设计依据 + 三条部署路径（Übersicht / 原生 WidgetKit / fork 进 UsageBoard）。
+不打算付费的话，菜单栏的 UsageBoard 面板已经覆盖所有数据。widget 代码已就绪，等签名通路打开即可发布。
 
 ---
 
@@ -178,7 +191,7 @@ python3 "$HOME/Library/Application Support/UsageBoard/plugins/daily-overview-plu
 欢迎 PR。可以折腾的方向：
 
 - 新增 CLI 插件（例如 Aider、Cursor CLI、Cline、OpenRouter）——拷一个现有 `*-usage-plugin.py` 当模板，遵循 `# UsageBoardPlugin: ... # /UsageBoardPlugin` 元数据块即可。
-- 调整配色/阈值规则——见 `docs/COLORS.md`。
+- 调整配色/阈值规则——当前规则在 [配置](#配置) 章节。
 - 原生 widget 收尾——一旦 Apple Developer Program 问题解决，`widget/` 已经准备好可分发。
 - 除 `zh-Hans` / `en` 之外的本地化。
 

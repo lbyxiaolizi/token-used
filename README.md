@@ -6,6 +6,22 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE) ![Platform](https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey)
 
+<p align="center">
+  <img src="images/menubar-panel.png" alt="UsageBoard menu-bar panel" width="425"><br>
+  <sub>Today Overview (hero total + per-model rows + right-column token count) atop per-CLI panels</sub>
+</p>
+
+<details>
+<summary>📊 Click to see expanded 7-day charts</summary>
+
+<p align="center">
+  <img src="images/today-overview-expanded.png" alt="Today Overview with 7-day stacked chart" width="425">
+  <img src="images/cli-panels-expanded.png" alt="Per-CLI panels with 7-day charts" width="425"><br>
+  <sub>Click the chevron under any panel to expand its 7-day stacked bar chart by model</sub>
+</p>
+
+</details>
+
 ---
 
 ## Features
@@ -64,7 +80,7 @@ sed "s|__HOME__|$HOME|g" examples/config.example.json > "$HOME/Library/Applicati
 # 5. Open UsageBoard, click the menu-bar icon — you should see four panels
 ```
 
-For step-by-step details (configuration UI, troubleshooting, uninstall), see [docs/INSTALL.md](docs/INSTALL.md).
+If anything goes wrong, see [Troubleshooting](#troubleshooting) below.
 
 ---
 
@@ -106,9 +122,9 @@ To customise: open UsageBoard → menu-bar icon → gear → **Plugins** → cli
 
 ### Progress-bar colour semantics
 
-The four plugins use **different** colour rules on purpose — see [docs/COLORS.md](docs/COLORS.md). TL;DR:
-- Daily overview → red/orange/blue based on each model's share of today's total
-- Per-CLI → red/orange/blue based on today's tokens vs the peak day in the period
+The four plugins use **different** colour rules on purpose:
+- **Daily overview** — red/orange/blue based on each model's share of today's total (≥50% red, ≥25% orange, otherwise blue)
+- **Per-CLI** — red/orange/blue based on today's tokens vs the peak day in the period (≥100% red = today broke the peak, ≥80% orange, otherwise blue)
 
 ---
 
@@ -126,10 +142,7 @@ TokenUsed/
 ├── examples/
 │   └── config.example.json             # Drop-in UsageBoard config with all four plugins registered
 ├── widget/                             # Native macOS WidgetKit app (Xcode project — see status below)
-├── docs/
-│   ├── INSTALL.md                      # Detailed install/uninstall walkthrough
-│   ├── COLORS.md                       # Why each plugin's bar colour rule differs
-│   └── WIDGET.md                       # Desktop widget design notes
+├── images/                             # README screenshots
 ├── README.md                           # This file (English)
 ├── README_ZH.md                        # 中文版
 └── LICENSE                             # MIT
@@ -141,7 +154,7 @@ TokenUsed/
 
 `widget/` contains a complete WidgetKit + SwiftUI Xcode project (Small / Medium / Large sizes, Swift Charts 7-day bar chart). It builds and runs locally, but on **macOS 15+ Sequoia / Tahoe** the system daemon `chronod` refuses to register Personal-Team-signed widget extensions in the desktop widget gallery — **you need a paid [Apple Developer Program](https://developer.apple.com/programs/) ($99/yr) account** to actually use it.
 
-If you don't pay for the Program, stick with the menu-bar UsageBoard panel — it has all the same data. See [docs/WIDGET.md](docs/WIDGET.md) for the full design rationale and three deployment paths (Übersicht / native WidgetKit / fork into UsageBoard).
+If you don't pay for the Program, stick with the menu-bar UsageBoard panel — it has all the same data. The widget code is kept ready to ship the day signing becomes possible.
 
 ---
 
@@ -178,7 +191,7 @@ python3 "$HOME/Library/Application Support/UsageBoard/plugins/daily-overview-plu
 PRs welcome. Useful directions:
 
 - New CLI plugins (e.g. Aider, Cursor CLI, Cline, OpenRouter) — copy any `*-usage-plugin.py` as a template, follow the `# UsageBoardPlugin: ... # /UsageBoardPlugin` metadata block.
-- Better colour/threshold rules — see `docs/COLORS.md`.
+- Better colour/threshold rules — current rules are documented in the [Configuration](#configuration) section.
 - Native widget polish — once the Apple Developer Program issue is sorted, the `widget/` project is ready for distribution.
 - Localisations beyond `zh-Hans` / `en`.
 
