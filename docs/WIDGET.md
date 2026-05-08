@@ -1,5 +1,7 @@
 # 桌面小组件方案
 
+> **更新（2026-05-08）**：方案 B（独立 WidgetKit 应用）已落地，源码在 [`widget/`](../widget/)。下文保留三方案对比作为设计依据。
+
 当前菜单栏面板需要点击图标才能查看。如果想让今日总览**常驻桌面**，下面是三条可选路径——按工程量从低到高排列。
 
 ## 方案对比
@@ -85,35 +87,19 @@ style: """
 
 然后从菜单栏 Übersicht 图标点 Refresh。
 
-### Step 2：满意后再考虑 B
+### 已实现：原生 WidgetKit（方案 B）
 
-如果效果好但不想依赖 Übersicht，再做独立 WidgetKit 项目。结构：
+源码：[`widget/`](../widget/)，标准 Xcode 项目，Swift 5.9 + SwiftUI + WidgetKit + Swift Charts。
 
-```
-TokenUsedWidget/
-├── TokenUsedWidget.xcodeproj
-├── App/                    # 极简容器 app（占位用）
-│   └── ContentView.swift
-└── Widget/                 # WidgetKit extension
-    ├── TokenUsedWidget.swift
-    ├── Provider.swift      # TimelineProvider，定期读 states/*.json
-    └── Views/
-        ├── SmallView.swift
-        ├── MediumView.swift
-        └── LargeView.swift
-```
+**安装步骤：**
 
-Provider 核心逻辑：
+1. `open widget/TokenUsedWidget.xcodeproj`
+2. Xcode → 选 `TokenUsedWidget` scheme → `Product > Archive`
+3. Distribute → Copy App → 把 `TokenUsedWidget.app` 拖到 `/Applications`
+4. 启动一次该 app（让系统注册 widget extension）
+5. 桌面右键 → 编辑小组件 → 搜 "TokenUsed" → 添加（small / medium / large 任选）
 
-```swift
-let stateURL = FileManager.default
-  .urls(for: .applicationSupportDirectory, in: .userDomainMask)
-  .first!
-  .appendingPathComponent("UsageBoard/states/daily-overview.json")
-let state = try JSONDecoder().decode(PluginCachedState.self, from: Data(contentsOf: stateURL))
-```
-
-由于 widget 不能调 Python，需要 UsageBoard 在后台保持运行（它会按插件的 `refreshIntervalSeconds` 持续刷新缓存）。Widget 只是这份缓存的"展示窗口"。
+**前提**：UsageBoard 在后台运行，会按其 `refreshIntervalSeconds` 持续把数据写到 `~/Library/Application Support/UsageBoard/states/daily-overview.json`。Widget 每 5 分钟读一次该文件。
 
 ## 不推荐 C 的原因
 

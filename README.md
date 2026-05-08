@@ -60,7 +60,7 @@ cp examples/config.example.json "$HOME/Library/Application Support/UsageBoard/co
 
 ## 路线图
 
-- [ ] 桌面小组件（参见 [docs/WIDGET.md](docs/WIDGET.md)，推荐 Übersicht 路线）
+- [x] 桌面小组件（原生 WidgetKit）：参见 [widget/](widget/) 与 [docs/WIDGET.md](docs/WIDGET.md)
 - [ ] 统一三家单 CLI 插件的进度条语义
 - [ ] 支持自定义模型分组与别名
 
