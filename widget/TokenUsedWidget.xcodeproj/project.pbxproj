@@ -20,6 +20,7 @@
 		C50A77AB5F2F4D3E91A1C0E3 /* MediumView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C50A77AB5F2F4D3E91A1C0E2 /* MediumView.swift */; };
 		C50A77AB5F2F4D3E91A1C0F3 /* LargeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C50A77AB5F2F4D3E91A1C0F2 /* LargeView.swift */; };
 		8472D126C17FD4333D2D024F /* TokenUsedApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66218353B0A385FEB278D2BA /* TokenUsedApp.swift */; };
+		C0117E0E5F2F4D3E91A1C0D5 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0117E0E5F2F4D3E91A1C0D4 /* ContentView.swift */; };
 		990836E020BC9DF1350A4CDB /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 70A1EB2F8938380A398DCED2 /* SwiftUI.framework */; };
 		EC5DDE0A5ACF409016D04137 /* Widget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AD321921D47BD574C238E51A /* Widget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
@@ -73,6 +74,7 @@
 		FA5A0A26A82B64FC23A4DCFA /* StateLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateLoader.swift; sourceTree = "<group>"; };
 		2E761504A673E3C4101416A0 /* StateLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateLoaderTests.swift; sourceTree = "<group>"; };
 		66218353B0A385FEB278D2BA /* TokenUsedApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenUsedApp.swift; sourceTree = "<group>"; };
+		C0117E0E5F2F4D3E91A1C0D4 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		70A1EB2F8938380A398DCED2 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		8B15258294E262FE04FC8577 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		911D9DDF9B6B653C0A888449 /* TokenUsedWidget.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TokenUsedWidget.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -125,6 +127,7 @@
 			isa = PBXGroup;
 			children = (
 				66218353B0A385FEB278D2BA /* TokenUsedApp.swift */,
+				C0117E0E5F2F4D3E91A1C0D4 /* ContentView.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -304,6 +307,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				8472D126C17FD4333D2D024F /* TokenUsedApp.swift in Sources */,
+				C0117E0E5F2F4D3E91A1C0D5 /* ContentView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

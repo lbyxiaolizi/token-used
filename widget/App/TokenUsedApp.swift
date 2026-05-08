@@ -4,7 +4,9 @@ import SwiftUI
 struct TokenUsedApp: App {
     var body: some Scene {
         WindowGroup {
-            Text("placeholder")
+            ContentView()
+                .frame(minWidth: 420, minHeight: 280)
         }
+        .windowResizability(.contentSize)
     }
 }

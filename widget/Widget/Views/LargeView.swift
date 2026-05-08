@@ -42,15 +42,16 @@ struct LargeView: View {
             AxisMarks(values: .automatic(desiredCount: 3)) { _ in
                 AxisGridLine()
                 AxisValueLabel()
-                    .font(.system(size: 8))
+                    .font(.caption2)
             }
         }
         .chartXAxis {
             AxisMarks { _ in
                 AxisValueLabel()
-                    .font(.system(size: 8))
+                    .font(.caption2)
             }
         }
+        .accessibilityLabel("近 7 天 token 用量按模型堆叠柱状图")
     }
 
     private func message(_ text: String) -> some View {
