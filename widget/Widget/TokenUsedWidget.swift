@@ -30,11 +30,7 @@ struct TokenUsedWidgetView: View {
     }
 }
 
-// MARK: - 占位实现，Task 5/6/7 会替换
-struct SmallView: View {
-    let entry: OverviewEntry
-    var body: some View { Text("small placeholder") }
-}
+// MARK: - 占位实现，Task 6/7 会替换
 struct MediumView: View {
     let entry: OverviewEntry
     var body: some View { Text("medium placeholder") }
