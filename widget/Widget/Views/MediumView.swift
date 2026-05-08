@@ -26,13 +26,14 @@ struct MediumView: View {
                 Spacer()
                 if isStale {
                     Text("已过期")
-                        .font(.system(size: 10))
+                        .font(.caption2)
                         .padding(.horizontal, 5).padding(.vertical, 2)
                         .background(.gray.opacity(0.25), in: Capsule())
                         .foregroundStyle(.secondary)
                 }
             }
             VStack(spacing: 5) {
+                // systemMedium 高度有限，只展示前 4 个；全量列表由 LargeView 承担
                 ForEach(rest.prefix(4)) { item in
                     row(item)
                 }

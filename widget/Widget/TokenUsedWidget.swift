@@ -29,9 +29,3 @@ struct TokenUsedWidgetView: View {
         }
     }
 }
-
-// MARK: - 占位实现，Task 7 会替换
-struct LargeView: View {
-    let entry: OverviewEntry
-    var body: some View { Text("large placeholder") }
-}
