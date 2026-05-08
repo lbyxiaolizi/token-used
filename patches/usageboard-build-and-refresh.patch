@@ -9,7 +9,7 @@ index 36fecf5..e4d6e73 100644
  
  import PackageDescription
 diff --git a/Sources/UsageBoardApp/DashboardView.swift b/Sources/UsageBoardApp/DashboardView.swift
-index 298556f..bbdc0de 100644
+index 298556f..955c554 100644
 --- a/Sources/UsageBoardApp/DashboardView.swift
 +++ b/Sources/UsageBoardApp/DashboardView.swift
 @@ -30,6 +30,16 @@ struct DashboardView: View {
@@ -95,7 +95,92 @@ index 298556f..bbdc0de 100644
      }
  
      private func scrollToSelectedTab(with proxy: ScrollViewProxy) {
-@@ -358,24 +369,28 @@ struct UsageItemRow: View {
+@@ -239,6 +250,42 @@ struct PluginGroupView: View {
+         AppLocalization(language: language)
+     }
+ 
++    /// 用 plugin id 作为 AppStorage key 的命名空间，跨刷新持久化用户选择的 period。
++    @AppStorage private var selectedDimensionKey: String
++    init(snapshot: PluginSnapshot, language: AppLanguage, onRefresh: (() -> Void)? = nil) {
++        self.snapshot = snapshot
++        self.language = language
++        self.onRefresh = onRefresh
++        let initial = snapshot.defaultDimension ?? ""
++        self._selectedDimensionKey = AppStorage(
++            wrappedValue: initial,
++            "usageboard.period.\(snapshot.id.uuidString)"
++        )
++    }
++
++    /// 当前生效的 dimension：dimensions 非空时按 selectedDimensionKey；否则 fallback 到 snapshot 顶层。
++    private var activeDimensionKey: String? {
++        guard let dims = snapshot.dimensions, !dims.isEmpty else { return nil }
++        if dims[selectedDimensionKey] != nil { return selectedDimensionKey }
++        if let def = snapshot.defaultDimension, dims[def] != nil { return def }
++        return snapshot.dimensionOrder?.first { dims[$0] != nil } ?? dims.keys.sorted().first
++    }
++    private var activeItems: [UsageItem] {
++        if let key = activeDimensionKey, let dim = snapshot.dimensions?[key] { return dim.items }
++        return snapshot.items
++    }
++    private var activeChart: PluginChart? {
++        if let key = activeDimensionKey, let dim = snapshot.dimensions?[key] { return dim.chart }
++        return snapshot.chart
++    }
++    private var orderedDimensionKeys: [String] {
++        guard let dims = snapshot.dimensions, !dims.isEmpty else { return [] }
++        if let order = snapshot.dimensionOrder, !order.isEmpty {
++            return order.filter { dims[$0] != nil }
++        }
++        return dims.keys.sorted()
++    }
++
+     var body: some View {
+         VStack(alignment: .leading, spacing: 10) {
+             HStack(spacing: 6) {
+@@ -258,9 +305,24 @@ struct PluginGroupView: View {
+                 stateView
+             }
+ 
++            // Period segmented picker（仅当 plugin 输出了 dimensions 时显示）
++            if !orderedDimensionKeys.isEmpty {
++                Picker("", selection: Binding(
++                    get: { activeDimensionKey ?? "" },
++                    set: { selectedDimensionKey = $0 }
++                )) {
++                    ForEach(orderedDimensionKeys, id: \.self) { key in
++                        Text(snapshot.dimensions?[key]?.label ?? key).tag(key)
++                    }
++                }
++                .pickerStyle(.segmented)
++                .controlSize(.small)
++                .labelsHidden()
++            }
++
+             Divider()
+ 
+-            if snapshot.items.isEmpty {
++            if activeItems.isEmpty {
+                 Text(emptyText)
+                     .font(.callout)
+                     .foregroundStyle(.secondary)
+@@ -268,13 +330,13 @@ struct PluginGroupView: View {
+                     .padding(.vertical, 18)
+             } else {
+                 VStack(spacing: 8) {
+-                    ForEach(snapshot.items) { item in
++                    ForEach(activeItems) { item in
+                         UsageItemRow(item: item, language: language)
+                     }
+                 }
+             }
+ 
+-            if let chart = snapshot.chart {
++            if let chart = activeChart {
+                 Divider()
+                 Button {
+                     isChartExpanded.toggle()
+@@ -358,24 +420,28 @@ struct UsageItemRow: View {
      var language: AppLanguage
  
      var body: some View {
@@ -137,10 +222,50 @@ index 298556f..bbdc0de 100644
  }
  
 diff --git a/Sources/UsageBoardCore/Models.swift b/Sources/UsageBoardCore/Models.swift
-index 71e738c..a160384 100644
+index 71e738c..7f70b24 100644
 --- a/Sources/UsageBoardCore/Models.swift
 +++ b/Sources/UsageBoardCore/Models.swift
-@@ -411,6 +411,7 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
+@@ -343,12 +343,37 @@ public struct PluginOutput: Decodable, Equatable, Sendable {
+     public var items: [UsageItem]
+     public var badge: String?
+     public var chart: PluginChart?
+-
+-    public init(updatedAt: Date, items: [UsageItem], badge: String? = nil, chart: PluginChart? = nil) {
++    public var dimensions: [String: PluginDimension]?
++    public var defaultDimension: String?
++    public var dimensionOrder: [String]?
++
++    public init(updatedAt: Date, items: [UsageItem], badge: String? = nil,
++                chart: PluginChart? = nil,
++                dimensions: [String: PluginDimension]? = nil,
++                defaultDimension: String? = nil,
++                dimensionOrder: [String]? = nil) {
+         self.updatedAt = updatedAt
+         self.items = items
+         self.badge = badge
+         self.chart = chart
++        self.dimensions = dimensions
++        self.defaultDimension = defaultDimension
++        self.dimensionOrder = dimensionOrder
++    }
++}
++
++/// Plugin 多维度输出（7d / 30d / 90d / all 的 items + chart 包）。
++public struct PluginDimension: Codable, Equatable, Sendable {
++    public var label: String
++    public var bucketUnit: String
++    public var items: [UsageItem]
++    public var chart: PluginChart?
++
++    public init(label: String, bucketUnit: String, items: [UsageItem], chart: PluginChart? = nil) {
++        self.label = label
++        self.bucketUnit = bucketUnit
++        self.items = items
++        self.chart = chart
+     }
+ }
+ 
+@@ -411,6 +436,7 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
      public var resetAt: Date?
      public var status: UsageStatus
      public var color: String?
@@ -148,7 +273,7 @@ index 71e738c..a160384 100644
  
      public init(
          id: String,
-@@ -420,7 +421,8 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
+@@ -420,7 +446,8 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
          displayStyle: UsageDisplayStyle,
          resetAt: Date? = nil,
          status: UsageStatus = .unknown,
@@ -158,7 +283,7 @@ index 71e738c..a160384 100644
      ) {
          self.id = id
          self.name = name
-@@ -430,6 +432,7 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
+@@ -430,6 +457,7 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
          self.resetAt = resetAt
          self.status = status
          self.color = color
@@ -166,8 +291,64 @@ index 71e738c..a160384 100644
      }
  
      public var progress: Double {
+@@ -527,6 +555,9 @@ public struct PluginSnapshot: Equatable, Identifiable, Sendable {
+     public var badge: String?
+     public var iconURL: String?
+     public var chart: PluginChart?
++    public var dimensions: [String: PluginDimension]?
++    public var defaultDimension: String?
++    public var dimensionOrder: [String]?
+ 
+     public init(
+         id: UUID,
+@@ -537,7 +568,10 @@ public struct PluginSnapshot: Equatable, Identifiable, Sendable {
+         updatedAt: Date? = nil,
+         badge: String? = nil,
+         iconURL: String? = nil,
+-        chart: PluginChart? = nil
++        chart: PluginChart? = nil,
++        dimensions: [String: PluginDimension]? = nil,
++        defaultDimension: String? = nil,
++        dimensionOrder: [String]? = nil
+     ) {
+         self.id = id
+         self.pluginName = pluginName
+@@ -548,6 +582,9 @@ public struct PluginSnapshot: Equatable, Identifiable, Sendable {
+         self.badge = badge
+         self.iconURL = iconURL
+         self.chart = chart
++        self.dimensions = dimensions
++        self.defaultDimension = defaultDimension
++        self.dimensionOrder = dimensionOrder
+     }
+ }
+ 
+@@ -556,11 +593,21 @@ public struct PluginCachedState: Codable, Equatable, Sendable {
+     public var items: [UsageItem]
+     public var badge: String?
+     public var chart: PluginChart?
+-
+-    public init(updatedAt: Date, items: [UsageItem], badge: String? = nil, chart: PluginChart? = nil) {
++    public var dimensions: [String: PluginDimension]?
++    public var defaultDimension: String?
++    public var dimensionOrder: [String]?
++
++    public init(updatedAt: Date, items: [UsageItem], badge: String? = nil,
++                chart: PluginChart? = nil,
++                dimensions: [String: PluginDimension]? = nil,
++                defaultDimension: String? = nil,
++                dimensionOrder: [String]? = nil) {
+         self.updatedAt = updatedAt
+         self.items = items
+         self.badge = badge
+         self.chart = chart
++        self.dimensions = dimensions
++        self.defaultDimension = defaultDimension
++        self.dimensionOrder = dimensionOrder
+     }
+ }
 diff --git a/Sources/UsageBoardCore/PluginExecutor.swift b/Sources/UsageBoardCore/PluginExecutor.swift
-index cabe8d4..a25b616 100644
+index cabe8d4..00c184d 100644
 --- a/Sources/UsageBoardCore/PluginExecutor.swift
 +++ b/Sources/UsageBoardCore/PluginExecutor.swift
 @@ -3,7 +3,7 @@
@@ -179,3 +360,15 @@ index cabe8d4..a25b616 100644
          self.timeoutSeconds = timeoutSeconds
      }
  
+@@ -61,7 +61,10 @@ public struct PluginExecutor: Sendable {
+                 updatedAt: pluginOutput.updatedAt,
+                 badge: pluginOutput.badge,
+                 iconURL: configuration.metadata?.icon,
+-                chart: pluginOutput.chart
++                chart: pluginOutput.chart,
++                dimensions: pluginOutput.dimensions,
++                defaultDimension: pluginOutput.defaultDimension,
++                dimensionOrder: pluginOutput.dimensionOrder
+             )
+         } catch {
+             return failed(configuration: configuration, displayName: displayName, message: "\(text(.jsonParseFailed, language: language))\(error.localizedDescription)")
