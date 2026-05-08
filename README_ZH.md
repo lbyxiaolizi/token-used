@@ -121,6 +121,7 @@ sed "s|__HOME__|$HOME|g" examples/config.example.json > "$HOME/Library/Applicati
 | `GEMINI_DIR` | `~/.gemini/tmp` | Gemini CLI `session-*.json` 目录 |
 | `CODEX_DIR` | `~/.codex` | Codex CLI 根目录（扫 `sessions/` + `archived_sessions/`） |
 | `CHART_PERIOD` | `7d` | `7d` 或 `30d`——图表时间窗 |
+| `TOKEN_MODE` | `billable` | `billable`（input+output+cache_creation，与 Claude Code `/cost` 一致）或 `raw`（再加上 `cache_read_input_tokens` 命中——通常占总量 ~95%） |
 
 ### 单 CLI 插件（`claude-code-usage-plugin.py`、`gemini-cli-usage-plugin.py`、`codex-local-usage-plugin.py`）
 
@@ -128,6 +129,9 @@ sed "s|__HOME__|$HOME|g" examples/config.example.json > "$HOME/Library/Applicati
 |---|---|---|
 | `*_DIR` | 同上 | 覆盖该 CLI 的扫描路径 |
 | `STAT_PERIOD` | `7d` | `7d` 或 `30d`——图表 + "今天 vs 期内峰值"进度条都用这个 |
+| `TOKEN_MODE`（仅 Claude） | `billable` | 同今日总览。对 Codex/Gemini 面板无效（它们的 token 报告里没有 cache_read 概念） |
+
+> **为什么有两种口径？** Claude 的 `usage` 把每次 prompt cache 命中都按 `cache_read_input_tokens` 计入。tool 用得多时 raw 总数会比真正按账单算的高 100×+。`billable` 对齐 Anthropic 计费四件套（`input + output + cache_creation`）；切换只在 cache 内做投影，不会触发重 parse。
 
 自定义路径：UsageBoard → 菜单栏图标 → 齿轮 → **插件** → 点插件 → 调参数。无需重启。
 

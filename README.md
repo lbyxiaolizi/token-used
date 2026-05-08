@@ -121,6 +121,7 @@ All four plugins read parameters from the UsageBoard plugin settings UI. Default
 | `GEMINI_DIR` | `~/.gemini/tmp` | Where Gemini CLI stores `session-*.json` |
 | `CODEX_DIR` | `~/.codex` | Codex CLI base dir (scans `sessions/` + `archived_sessions/`) |
 | `CHART_PERIOD` | `7d` | `7d` or `30d` — chart window length |
+| `TOKEN_MODE` | `billable` | `billable` (input+output+cache_creation, matches Claude Code `/cost`) or `raw` (also includes `cache_read_input_tokens` hits — typically ~95% of the total) |
 
 ### Per-CLI plugins (`claude-code-usage-plugin.py`, `gemini-cli-usage-plugin.py`, `codex-local-usage-plugin.py`)
 
@@ -128,6 +129,9 @@ All four plugins read parameters from the UsageBoard plugin settings UI. Default
 |---|---|---|
 | `*_DIR` | same as above | Override scan path for that CLI |
 | `STAT_PERIOD` | `7d` | `7d` or `30d` — both for the chart and the "today vs peak day" progress bar |
+| `TOKEN_MODE` (Claude only) | `billable` | Same semantics as Daily Overview. Has no effect on Codex/Gemini panels (their reported tokens have no cache-read concept) |
+
+> **Why two modes?** Claude's `usage` report counts every prompt-cache hit as `cache_read_input_tokens`. With heavy tool use, this can balloon the "raw" total to 100×+ what you actually billed. `billable` matches the four-component cost formula Anthropic uses (`input + output + cache_creation`); switching only re-projects the in-cache totals — no reparse.
 
 To customise: open UsageBoard → menu-bar icon → gear → **Plugins** → click the plugin → adjust parameters. No restart needed.
 

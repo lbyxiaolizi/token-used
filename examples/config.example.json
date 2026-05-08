@@ -73,6 +73,29 @@
             ],
             "required" : false,
             "type" : "choice"
+          },
+          {
+            "defaultValue" : "billable",
+            "label" : "Token 计算口径（仅对 Claude 生效）",
+            "label@en" : "Token Counting Mode (Claude only)",
+            "label@zh-Hans" : "Token 计算口径（仅对 Claude 生效）",
+            "name" : "TOKEN_MODE",
+            "options" : [
+              {
+                "label" : "计费等价（input+output+cache_creation）",
+                "label@en" : "Billable (input+output+cache_creation)",
+                "label@zh-Hans" : "计费等价（input+output+cache_creation）",
+                "value" : "billable"
+              },
+              {
+                "label" : "原始（含 cache_read 命中）",
+                "label@en" : "Raw (incl. cache_read hits)",
+                "label@zh-Hans" : "原始（含 cache_read 命中）",
+                "value" : "raw"
+              }
+            ],
+            "required" : false,
+            "type" : "choice"
           }
         ]
       },
@@ -81,7 +104,8 @@
         "CHART_PERIOD" : "7d",
         "CLAUDE_DIR" : "~\/.claude\/projects",
         "CODEX_DIR" : "~\/.codex",
-        "GEMINI_DIR" : "~\/.gemini\/tmp"
+        "GEMINI_DIR" : "~\/.gemini\/tmp",
+        "TOKEN_MODE" : "billable"
       },
       "refreshIntervalSeconds" : 300,
       "stateID" : "daily-overview"
@@ -133,13 +157,37 @@
             ],
             "required" : false,
             "type" : "choice"
+          },
+          {
+            "defaultValue" : "billable",
+            "label" : "Token 计算口径",
+            "label@en" : "Token Counting Mode",
+            "label@zh-Hans" : "Token 计算口径",
+            "name" : "TOKEN_MODE",
+            "options" : [
+              {
+                "label" : "计费等价（input+output+cache_creation）",
+                "label@en" : "Billable (input+output+cache_creation)",
+                "label@zh-Hans" : "计费等价（input+output+cache_creation）",
+                "value" : "billable"
+              },
+              {
+                "label" : "原始（含 cache_read 命中）",
+                "label@en" : "Raw (incl. cache_read hits)",
+                "label@zh-Hans" : "原始（含 cache_read 命中）",
+                "value" : "raw"
+              }
+            ],
+            "required" : false,
+            "type" : "choice"
           }
         ]
       },
       "name" : "Claude Code",
       "parameterValues" : {
         "DATA_DIR" : "~\/.claude\/projects",
-        "STAT_PERIOD" : "7d"
+        "STAT_PERIOD" : "7d",
+        "TOKEN_MODE" : "billable"
       },
       "refreshIntervalSeconds" : 300,
       "stateID" : "claude-code-local"
