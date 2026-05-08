@@ -347,6 +347,7 @@ def main() -> int:
             "resetAt": None,
             "status": "normal",
             "color": "blue",
+            "trailingText": fmt_tokens(today_total),
         })
         # 每个模型一条 item，limit = 今日总量 → 进度条 = 该模型今天的占比
         for i, (model, tokens) in enumerate(sorted_models):
@@ -362,6 +363,7 @@ def main() -> int:
                 "resetAt": None,
                 "status": "normal",
                 "color": color,
+                "trailingText": fmt_tokens(tokens),
             })
 
     # 跨源图表：每天按模型分段

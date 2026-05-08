@@ -265,6 +265,7 @@ def main() -> int:
         "resetAt": None,
         "status": status,
         "color": color,
+        "trailingText": fmt_tokens(today_total),
     }]
     chart = build_chart(by_bucket, model_totals, buckets, period, language)
 

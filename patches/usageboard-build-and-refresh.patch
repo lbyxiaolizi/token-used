@@ -1,6 +1,7 @@
 Package.swift                             | 2 +-
- Sources/UsageBoardApp/DashboardView.swift | 1 +
- 2 files changed, 2 insertions(+), 1 deletion(-)
+ Sources/UsageBoardApp/DashboardView.swift | 3 ++-
+ Sources/UsageBoardCore/Models.swift       | 5 ++++-
+ 3 files changed, 7 insertions(+), 3 deletions(-)
 
 --- Changes ---
 
@@ -19,4 +20,30 @@ Sources/UsageBoardApp/DashboardView.swift
            }
            .onChange(of: enabledPlugins.map(\.id)) { _ in
                ensureSelectedTab()
-  +1 -0
+  @@ -368,7 +369,7 @@ struct UsageItemRow: View {
+  -            Text(item.resetText(language: language))
+  +            Text(item.trailingText ?? item.resetText(language: language))
+                   .font(.caption)
+                   .lineLimit(1)
+                   .minimumScaleFactor(0.8)
+  +2 -1
+
+Sources/UsageBoardCore/Models.swift
+  @@ -411,6 +411,7 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
+  +    public var trailingText: String?
+   
+       public init(
+           id: String,
+  @@ -420,7 +421,8 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
+  -        color: String? = nil
+  +        color: String? = nil,
+  +        trailingText: String? = nil
+       ) {
+           self.id = id
+           self.name = name
+  @@ -430,6 +432,7 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
+  +        self.trailingText = trailingText
+       }
+   
+       public var progress: Double {
+  +4 -1
