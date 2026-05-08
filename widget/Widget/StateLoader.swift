@@ -40,7 +40,7 @@ struct StateLoader {
         do {
             data = try Data(contentsOf: stateFileURL)
         } catch {
-            return .failure(.fileMissing)
+            return .failure(.decode(error))
         }
 
         let decoder = JSONDecoder()
