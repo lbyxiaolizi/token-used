@@ -6,28 +6,40 @@ struct TokenUsedWidget: Widget {
     let kind = "TokenUsedWidget"
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: PlaceholderProvider()) { _ in
-            Text("placeholder")
+        StaticConfiguration(kind: kind, provider: Provider()) { entry in
+            TokenUsedWidgetView(entry: entry)
                 .containerBackground(.fill.tertiary, for: .widget)
         }
         .configurationDisplayName("TokenUsed")
-        .description("placeholder")
+        .description("今日 token 用量与各模型占比")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
 
-struct PlaceholderEntry: TimelineEntry {
-    let date: Date
+struct TokenUsedWidgetView: View {
+    @Environment(\.widgetFamily) private var family
+    let entry: OverviewEntry
+
+    var body: some View {
+        switch family {
+        case .systemSmall:  SmallView(entry: entry)
+        case .systemMedium: MediumView(entry: entry)
+        case .systemLarge:  LargeView(entry: entry)
+        default:            MediumView(entry: entry)
+        }
+    }
 }
 
-struct PlaceholderProvider: TimelineProvider {
-    func placeholder(in context: Context) -> PlaceholderEntry {
-        PlaceholderEntry(date: Date())
-    }
-    func getSnapshot(in context: Context, completion: @escaping (PlaceholderEntry) -> Void) {
-        completion(PlaceholderEntry(date: Date()))
-    }
-    func getTimeline(in context: Context, completion: @escaping (Timeline<PlaceholderEntry>) -> Void) {
-        completion(Timeline(entries: [PlaceholderEntry(date: Date())], policy: .never))
-    }
+// MARK: - 占位实现，Task 5/6/7 会替换
+struct SmallView: View {
+    let entry: OverviewEntry
+    var body: some View { Text("small placeholder") }
+}
+struct MediumView: View {
+    let entry: OverviewEntry
+    var body: some View { Text("medium placeholder") }
+}
+struct LargeView: View {
+    let entry: OverviewEntry
+    var body: some View { Text("large placeholder") }
 }
