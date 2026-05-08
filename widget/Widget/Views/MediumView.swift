@@ -25,7 +25,7 @@ struct MediumView: View {
                     .minimumScaleFactor(0.7)
                 Spacer()
                 if isStale {
-                    Text("已过期")
+                    Text(staleLabel(for: model))
                         .font(.caption2)
                         .padding(.horizontal, 5).padding(.vertical, 2)
                         .background(.gray.opacity(0.25), in: Capsule())
@@ -74,6 +74,12 @@ struct MediumView: View {
         case .green:  return .green
         case .gray:   return .gray
         }
+    }
+
+    private func staleLabel(for model: DailyOverview) -> String {
+        guard let updatedAt = model.updatedAt else { return "已过期" }
+        let hours = Int(Date().timeIntervalSince(updatedAt) / 3600)
+        return hours >= 1 ? "已过期 \(hours)h" : "已过期"
     }
 
     private func message(_ text: String) -> some View {

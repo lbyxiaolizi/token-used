@@ -23,7 +23,7 @@ struct SmallView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                 if isStale {
-                    Text("已过期")
+                    Text(staleLabel(for: model))
                         .font(.system(size: 9))
                         .padding(.horizontal, 4).padding(.vertical, 1)
                         .background(.gray.opacity(0.25), in: Capsule())
@@ -43,6 +43,12 @@ struct SmallView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func staleLabel(for model: DailyOverview) -> String {
+        guard let updatedAt = model.updatedAt else { return "已过期" }
+        let hours = Int(Date().timeIntervalSince(updatedAt) / 3600)
+        return hours >= 1 ? "已过期 \(hours)h" : "已过期"
     }
 
     private func message(_ text: String) -> some View {
