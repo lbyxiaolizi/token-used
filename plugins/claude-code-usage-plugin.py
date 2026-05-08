@@ -226,17 +226,19 @@ def main() -> int:
     status = "critical" if ratio >= 1.0 else "warning" if ratio >= 0.8 else "normal"
     color = "red" if ratio >= 1.0 else "orange" if ratio >= 0.8 else "blue"
 
-    items = [{
-        "id": "claude-total",
-        "name": f"{period_label}: {fmt_tokens(total)} tokens",
-        "used": today_m,
-        "limit": max(peak_m, 0.01),
-        "displayStyle": "ratio",
-        "resetAt": None,
-        "status": status,
-        "color": color,
-        "trailingText": fmt_tokens(today_total),
-    }]
+    items = []
+    if total > 0:
+        items.append({
+            "id": "claude-total",
+            "name": f"{period_label}: {fmt_tokens(total)} tokens",
+            "used": today_m,
+            "limit": max(peak_m, 0.01),
+            "displayStyle": "ratio",
+            "resetAt": None,
+            "status": status,
+            "color": color,
+            "trailingText": fmt_tokens(today_total),
+        })
 
     chart = build_chart(by_bucket, model_totals, buckets, period, language)
 
