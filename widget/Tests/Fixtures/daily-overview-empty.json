@@ -1,0 +1,11 @@
+{
+  "badge": null,
+  "chart": {
+    "bucketUnit": "day",
+    "buckets": [],
+    "kind": "line",
+    "period": "7d"
+  },
+  "items": [],
+  "updatedAt": "2026-05-08T10:00:00Z"
+}

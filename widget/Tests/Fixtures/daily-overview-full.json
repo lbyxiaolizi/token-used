@@ -1,0 +1,118 @@
+{
+  "badge" : "616.89M",
+  "chart" : {
+    "bucketUnit" : "day",
+    "buckets" : [
+      {
+        "id" : "2026-05-02",
+        "label" : "05-02",
+        "segments" : [
+
+        ]
+      },
+      {
+        "id" : "2026-05-03",
+        "label" : "05-03",
+        "segments" : [
+
+        ]
+      },
+      {
+        "id" : "2026-05-04",
+        "label" : "05-04",
+        "segments" : [
+
+        ]
+      },
+      {
+        "id" : "2026-05-05",
+        "label" : "05-05",
+        "segments" : [
+
+        ]
+      },
+      {
+        "id" : "2026-05-06",
+        "label" : "05-06",
+        "segments" : [
+          {
+            "model" : "claude-opus-4-7",
+            "tokens" : 160736235
+          },
+          {
+            "model" : "gpt-5.5",
+            "tokens" : 53114055
+          },
+          {
+            "model" : "gpt-5.4",
+            "tokens" : 56955946
+          }
+        ]
+      },
+      {
+        "id" : "2026-05-07",
+        "label" : "05-07",
+        "segments" : [
+          {
+            "model" : "claude-opus-4-7",
+            "tokens" : 341483585
+          },
+          {
+            "model" : "gpt-5.5",
+            "tokens" : 277968278
+          },
+          {
+            "model" : "gpt-5.4",
+            "tokens" : 22017529
+          }
+        ]
+      },
+      {
+        "id" : "2026-05-08",
+        "label" : "05-08",
+        "segments" : [
+          {
+            "model" : "claude-opus-4-7",
+            "tokens" : 437789723
+          },
+          {
+            "model" : "gpt-5.5",
+            "tokens" : 179103722
+          }
+        ]
+      }
+    ],
+    "kind" : "line",
+    "period" : "7d"
+  },
+  "items" : [
+    {
+      "color" : "blue",
+      "displayStyle" : "ratio",
+      "id" : "overview-today-total",
+      "limit" : 616.89,
+      "name" : "今日合计  ▸  616.89M tokens",
+      "status" : "normal",
+      "used" : 616.89
+    },
+    {
+      "color" : "red",
+      "displayStyle" : "percent",
+      "id" : "overview-0-claude-opus-4-7",
+      "limit" : 616.89,
+      "name" : "claude-opus-4-7  (437.79M)",
+      "status" : "normal",
+      "used" : 437.79
+    },
+    {
+      "color" : "orange",
+      "displayStyle" : "percent",
+      "id" : "overview-1-gpt-5.5",
+      "limit" : 616.89,
+      "name" : "gpt-5.5  (179.10M)",
+      "status" : "normal",
+      "used" : 179.1
+    }
+  ],
+  "updatedAt" : "2026-05-08T10:30:06Z"
+}
