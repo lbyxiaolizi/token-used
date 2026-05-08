@@ -108,14 +108,7 @@ def main() -> int:
         "dimensionOrder": list(PERIODS),
         "dimensions": dims,
     }
-    if not any(d.get("items") for d in dims.values()):
-        # 全部 period 都没数据，输出 scan_failed-style item 兜底
-        out["items"] = [{
-            "id": "claude-empty",
-            "name": tr(language, "no_data"),
-            "used": 0, "limit": 1, "displayStyle": "percent",
-            "resetAt": None, "status": "normal",
-        }]
+    # 注意：所有 dimension 都没数据时保留 items=[]，让宿主 visiblePlugins 自动隐藏整个 panel
     print(json.dumps(out, ensure_ascii=False))
     return 0
 

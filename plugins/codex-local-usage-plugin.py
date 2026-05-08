@@ -93,13 +93,7 @@ def main() -> int:
         "dimensionOrder": list(PERIODS),
         "dimensions": dims,
     }
-    if not any(d.get("items") for d in dims.values()):
-        out["items"] = [{
-            "id": "codex-empty",
-            "name": tr(language, "no_data"),
-            "used": 0, "limit": 1, "displayStyle": "percent",
-            "resetAt": None, "status": "normal",
-        }]
+    # 全 dimension 空 → items=[]，宿主 visiblePlugins 会自动隐藏整个 panel
     print(json.dumps(out, ensure_ascii=False))
     return 0
 
