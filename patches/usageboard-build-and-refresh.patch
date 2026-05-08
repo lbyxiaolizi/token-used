@@ -1,109 +1,149 @@
-Package.swift                             |  2 +-
- Sources/UsageBoardApp/DashboardView.swift | 31 +++++++++++++++++++++----------
- Sources/UsageBoardCore/Models.swift       |  5 ++++-
- 3 files changed, 26 insertions(+), 12 deletions(-)
-
---- Changes ---
-
-Package.swift
-  @@ -1,4 +1,4 @@
-  -// swift-tools-version: 6.3
-  +// swift-tools-version: 6.2
-   // The swift-tools-version declares the minimum version of Swift required to build this package.
-   
-   import PackageDescription
-  +1 -1
-
-Sources/UsageBoardApp/DashboardView.swift
-  @@ -30,6 +30,16 @@ struct DashboardView: View {
-  +    /// 已加载完成且 items 为空的 plugin 自动隐藏（数据为 0 时不占位）。
-  +    /// idle / loading / failed 状态保留显示，避免首次加载误判。
-  +    private var visiblePlugins: [PluginConfiguration] {
-  +        enabledPlugins.filter { plugin in
-  +            let snap = store.snapshot(for: plugin)
-  +            if snap.state == .ready, snap.items.isEmpty { return false }
-  +            return true
-  +        }
-  +    }
-  +
-       private var strings: AppLocalization {
-           AppLocalization(language: store.activeLanguage)
-       }
-  @@ -43,7 +53,7 @@ struct DashboardView: View {
-  -                            ForEach(enabledPlugins) { plugin in
-  +                            ForEach(visiblePlugins) { plugin in
-                                   PluginGroupView(snapshot: store.snapshot(for: plugin), language: store.activeLanguage) {
-                                       store.refresh(pluginID: plugin.id, force: true)
-                                   }
-  @@ -56,7 +66,7 @@ struct DashboardView: View {
-  -                                    ForEach(enabledPlugins) { plugin in
-  +                                    ForEach(visiblePlugins) { plugin in
-                                           Button {
-                                               store.selectedTabID = plugin.id
-                                           } label: {
-  @@ -83,7 +93,7 @@ struct DashboardView: View {
-  -                            .onChange(of: enabledPlugins.map(\.id)) { _ in
-  +                            .onChange(of: visiblePlugins.map(\.id)) { _ in
-                                   scrollToSelectedTab(with: proxy)
-                               }
-                           }
-  @@ -100,8 +110,9 @@ struct DashboardView: View {
-  +            store.refreshAll()
-           }
-  -        .onChange(of: enabledPlugins.map(\.id)) { _ in
-  +        .onChange(of: visiblePlugins.map(\.id)) { _ in
-               ensureSelectedTab()
-           }
-           .toolbar {
-  @@ -116,22 +127,22 @@ struct DashboardView: View {
-  -           let plugin = enabledPlugins.first(where: { $0.id == selectedTabID }) {
-  +           let plugin = visiblePlugins.first(where: { $0.id == selectedTabID }) {
-               return plugin
-           }
-  -        return enabledPlugins.first
-  +        return visiblePlugins.first
-       }
-   
-       private func ensureSelectedTab() {
-  -        guard !enabledPlugins.isEmpty else {
-  +        guard !visiblePlugins.isEmpty else {
-               store.selectedTabID = nil
-               return
-           }
-           if let selectedTabID = store.selectedTabID,
-  -           enabledPlugins.contains(where: { $0.id == selectedTabID }) {
-  +           visiblePlugins.contains(where: { $0.id == selectedTabID }) {
-               return
-           }
-  -        store.selectedTabID = enabledPlugins.first?.id
-  +        store.selectedTabID = visiblePlugins.first?.id
-       }
-   
-       private func scrollToSelectedTab(with proxy: ScrollViewProxy) {
-  @@ -368,7 +379,7 @@ struct UsageItemRow: View {
-  -            Text(item.resetText(language: language))
-  +            Text(item.trailingText ?? item.resetText(language: language))
-                   .font(.caption)
-                   .lineLimit(1)
-                   .minimumScaleFactor(0.8)
-  +21 -10
-
-Sources/UsageBoardCore/Models.swift
-  @@ -411,6 +411,7 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
-  +    public var trailingText: String?
-   
-       public init(
-           id: String,
-  @@ -420,7 +421,8 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
-  -        color: String? = nil
-  +        color: String? = nil,
-  +        trailingText: String? = nil
-       ) {
-           self.id = id
-           self.name = name
-  @@ -430,6 +432,7 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
-  +        self.trailingText = trailingText
-       }
-   
-       public var progress: Double {
-  +4 -1
+diff --git a/Package.swift b/Package.swift
+index 36fecf5..e4d6e73 100644
+--- a/Package.swift
++++ b/Package.swift
+@@ -1,4 +1,4 @@
+-// swift-tools-version: 6.3
++// swift-tools-version: 6.2
+ // The swift-tools-version declares the minimum version of Swift required to build this package.
+ 
+ import PackageDescription
+diff --git a/Sources/UsageBoardApp/DashboardView.swift b/Sources/UsageBoardApp/DashboardView.swift
+index 298556f..18114fb 100644
+--- a/Sources/UsageBoardApp/DashboardView.swift
++++ b/Sources/UsageBoardApp/DashboardView.swift
+@@ -30,6 +30,16 @@ struct DashboardView: View {
+         store.configuration.plugins.filter(\.enabled)
+     }
+ 
++    /// 已加载完成且 items 为空的 plugin 自动隐藏（数据为 0 时不占位）。
++    /// idle / loading / failed 状态保留显示，避免首次加载误判。
++    private var visiblePlugins: [PluginConfiguration] {
++        enabledPlugins.filter { plugin in
++            let snap = store.snapshot(for: plugin)
++            if snap.state == .ready, snap.items.isEmpty { return false }
++            return true
++        }
++    }
++
+     private var strings: AppLocalization {
+         AppLocalization(language: store.activeLanguage)
+     }
+@@ -43,7 +53,7 @@ struct DashboardView: View {
+                 case .grouped:
+                     MeasuredScrollView(maxHeight: maxHeight) {
+                         LazyVStack(spacing: 10) {
+-                            ForEach(enabledPlugins) { plugin in
++                            ForEach(visiblePlugins) { plugin in
+                                 PluginGroupView(snapshot: store.snapshot(for: plugin), language: store.activeLanguage) {
+                                     store.refresh(pluginID: plugin.id, force: true)
+                                 }
+@@ -56,7 +66,7 @@ struct DashboardView: View {
+                         ScrollViewReader { proxy in
+                             ScrollView(.horizontal, showsIndicators: false) {
+                                 HStack(spacing: 6) {
+-                                    ForEach(enabledPlugins) { plugin in
++                                    ForEach(visiblePlugins) { plugin in
+                                         Button {
+                                             store.selectedTabID = plugin.id
+                                         } label: {
+@@ -83,7 +93,7 @@ struct DashboardView: View {
+                             .onChange(of: store.selectedTabID) { _ in
+                                 scrollToSelectedTab(with: proxy)
+                             }
+-                            .onChange(of: enabledPlugins.map(\.id)) { _ in
++                            .onChange(of: visiblePlugins.map(\.id)) { _ in
+                                 scrollToSelectedTab(with: proxy)
+                             }
+                         }
+@@ -100,8 +110,9 @@ struct DashboardView: View {
+         }
+         .onAppear {
+             ensureSelectedTab()
++            store.refreshAll()
+         }
+-        .onChange(of: enabledPlugins.map(\.id)) { _ in
++        .onChange(of: visiblePlugins.map(\.id)) { _ in
+             ensureSelectedTab()
+         }
+         .toolbar {
+@@ -116,22 +127,22 @@ struct DashboardView: View {
+ 
+     private var selectedPlugin: PluginConfiguration? {
+         if let selectedTabID = store.selectedTabID,
+-           let plugin = enabledPlugins.first(where: { $0.id == selectedTabID }) {
++           let plugin = visiblePlugins.first(where: { $0.id == selectedTabID }) {
+             return plugin
+         }
+-        return enabledPlugins.first
++        return visiblePlugins.first
+     }
+ 
+     private func ensureSelectedTab() {
+-        guard !enabledPlugins.isEmpty else {
++        guard !visiblePlugins.isEmpty else {
+             store.selectedTabID = nil
+             return
+         }
+         if let selectedTabID = store.selectedTabID,
+-           enabledPlugins.contains(where: { $0.id == selectedTabID }) {
++           visiblePlugins.contains(where: { $0.id == selectedTabID }) {
+             return
+         }
+-        store.selectedTabID = enabledPlugins.first?.id
++        store.selectedTabID = visiblePlugins.first?.id
+     }
+ 
+     private func scrollToSelectedTab(with proxy: ScrollViewProxy) {
+@@ -368,7 +379,7 @@ struct UsageItemRow: View {
+                 .frame(height: 18)
+                 .layoutPriority(1)
+ 
+-            Text(item.resetText(language: language))
++            Text(item.trailingText ?? item.resetText(language: language))
+                 .font(.caption)
+                 .lineLimit(1)
+                 .minimumScaleFactor(0.8)
+diff --git a/Sources/UsageBoardCore/Models.swift b/Sources/UsageBoardCore/Models.swift
+index 71e738c..a160384 100644
+--- a/Sources/UsageBoardCore/Models.swift
++++ b/Sources/UsageBoardCore/Models.swift
+@@ -411,6 +411,7 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
+     public var resetAt: Date?
+     public var status: UsageStatus
+     public var color: String?
++    public var trailingText: String?
+ 
+     public init(
+         id: String,
+@@ -420,7 +421,8 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
+         displayStyle: UsageDisplayStyle,
+         resetAt: Date? = nil,
+         status: UsageStatus = .unknown,
+-        color: String? = nil
++        color: String? = nil,
++        trailingText: String? = nil
+     ) {
+         self.id = id
+         self.name = name
+@@ -430,6 +432,7 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
+         self.resetAt = resetAt
+         self.status = status
+         self.color = color
++        self.trailingText = trailingText
+     }
+ 
+     public var progress: Double {
+diff --git a/Sources/UsageBoardCore/PluginExecutor.swift b/Sources/UsageBoardCore/PluginExecutor.swift
+index cabe8d4..a25b616 100644
+--- a/Sources/UsageBoardCore/PluginExecutor.swift
++++ b/Sources/UsageBoardCore/PluginExecutor.swift
+@@ -3,7 +3,7 @@
+ public struct PluginExecutor: Sendable {
+     public var timeoutSeconds: TimeInterval
+ 
+-    public init(timeoutSeconds: TimeInterval = 15) {
++    public init(timeoutSeconds: TimeInterval = 30) {
+         self.timeoutSeconds = timeoutSeconds
+     }
+ 
