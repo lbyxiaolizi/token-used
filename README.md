@@ -120,7 +120,7 @@ All four plugins read parameters from the UsageBoard plugin settings UI. Default
 | `CLAUDE_DIR` | `~/.claude/projects` | Where Claude Code stores session JSONL |
 | `GEMINI_DIR` | `~/.gemini/tmp` | Where Gemini CLI stores `session-*.json` |
 | `CODEX_DIR` | `~/.codex` | Codex CLI base dir (scans `sessions/` + `archived_sessions/`) |
-| `CHART_PERIOD` | `7d` | `7d` or `30d` — chart window length |
+| `CHART_PERIOD` | `30d` | Default period: `7d` / `30d` / `90d` / `all` (12 months) — chart auto-buckets: day → week (90d) → month (all) |
 | `TOKEN_MODE` | `billable` | `billable` (input+output+cache_creation, matches Claude Code `/cost`) or `raw` (also includes `cache_read_input_tokens` hits — typically ~95% of the total) |
 
 ### Per-CLI plugins (`claude-code-usage-plugin.py`, `gemini-cli-usage-plugin.py`, `codex-local-usage-plugin.py`)
@@ -128,8 +128,10 @@ All four plugins read parameters from the UsageBoard plugin settings UI. Default
 | Parameter | Default | Description |
 |---|---|---|
 | `*_DIR` | same as above | Override scan path for that CLI |
-| `STAT_PERIOD` | `7d` | `7d` or `30d` — both for the chart and the "today vs peak day" progress bar |
+| `STAT_PERIOD` | `30d` | Default period: `7d` / `30d` / `90d` / `all` |
 | `TOKEN_MODE` (Claude only) | `billable` | Same semantics as Daily Overview. Has no effect on Codex/Gemini panels (their reported tokens have no cache-read concept) |
+
+> **In-panel segmented picker**: every plugin emits a `dimensions` map with all four periods, so once data is in cache (~30s first run), `7d ↔ 30d ↔ 90d ↔ All` switches instantly — no plugin re-spawn, no re-parse. The selection is persisted per-plugin via `@AppStorage("usageboard.period.<pluginID>")`.
 
 > **Why two modes?** Claude's `usage` report counts every prompt-cache hit as `cache_read_input_tokens`. With heavy tool use, this can balloon the "raw" total to 100×+ what you actually billed. `billable` matches the four-component cost formula Anthropic uses (`input + output + cache_creation`); switching only re-projects the in-cache totals — no reparse.
 

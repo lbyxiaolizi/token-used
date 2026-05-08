@@ -52,10 +52,10 @@
             "type" : "string"
           },
           {
-            "defaultValue" : "7d",
-            "label" : "图表周期",
-            "label@en" : "Chart Period",
-            "label@zh-Hans" : "图表周期",
+            "defaultValue" : "30d",
+            "label" : "默认图表周期",
+            "label@en" : "Default Chart Period",
+            "label@zh-Hans" : "默认图表周期",
             "name" : "CHART_PERIOD",
             "options" : [
               {
@@ -69,6 +69,18 @@
                 "label@en" : "30 days",
                 "label@zh-Hans" : "30 天",
                 "value" : "30d"
+              },
+              {
+                "label" : "90 天",
+                "label@en" : "90 days",
+                "label@zh-Hans" : "90 天",
+                "value" : "90d"
+              },
+              {
+                "label" : "全部 (12 月)",
+                "label@en" : "All (12 mo)",
+                "label@zh-Hans" : "全部 (12 月)",
+                "value" : "all"
               }
             ],
             "required" : false,
@@ -101,7 +113,7 @@
       },
       "name" : "今日总览",
       "parameterValues" : {
-        "CHART_PERIOD" : "7d",
+        "CHART_PERIOD" : "30d",
         "CLAUDE_DIR" : "~\/.claude\/projects",
         "CODEX_DIR" : "~\/.codex",
         "GEMINI_DIR" : "~\/.gemini\/tmp",
@@ -136,10 +148,10 @@
             "type" : "string"
           },
           {
-            "defaultValue" : "7d",
-            "label" : "统计周期",
-            "label@en" : "Stats Period",
-            "label@zh-Hans" : "统计周期",
+            "defaultValue" : "30d",
+            "label" : "默认统计周期",
+            "label@en" : "Default Stats Period",
+            "label@zh-Hans" : "默认统计周期",
             "name" : "STAT_PERIOD",
             "options" : [
               {
@@ -153,6 +165,18 @@
                 "label@en" : "30 days",
                 "label@zh-Hans" : "30 天",
                 "value" : "30d"
+              },
+              {
+                "label" : "90 天",
+                "label@en" : "90 days",
+                "label@zh-Hans" : "90 天",
+                "value" : "90d"
+              },
+              {
+                "label" : "全部 (12 月)",
+                "label@en" : "All (12 mo)",
+                "label@zh-Hans" : "全部 (12 月)",
+                "value" : "all"
               }
             ],
             "required" : false,
@@ -186,7 +210,7 @@
       "name" : "Claude Code",
       "parameterValues" : {
         "DATA_DIR" : "~\/.claude\/projects",
-        "STAT_PERIOD" : "7d",
+        "STAT_PERIOD" : "30d",
         "TOKEN_MODE" : "billable"
       },
       "refreshIntervalSeconds" : 300,
@@ -218,10 +242,10 @@
             "type" : "string"
           },
           {
-            "defaultValue" : "7d",
-            "label" : "统计周期",
-            "label@en" : "Stats Period",
-            "label@zh-Hans" : "统计周期",
+            "defaultValue" : "30d",
+            "label" : "默认统计周期",
+            "label@en" : "Default Stats Period",
+            "label@zh-Hans" : "默认统计周期",
             "name" : "STAT_PERIOD",
             "options" : [
               {
@@ -235,6 +259,18 @@
                 "label@en" : "30 days",
                 "label@zh-Hans" : "30 天",
                 "value" : "30d"
+              },
+              {
+                "label" : "90 天",
+                "label@en" : "90 days",
+                "label@zh-Hans" : "90 天",
+                "value" : "90d"
+              },
+              {
+                "label" : "全部 (12 月)",
+                "label@en" : "All (12 mo)",
+                "label@zh-Hans" : "全部 (12 月)",
+                "value" : "all"
               }
             ],
             "required" : false,
@@ -276,10 +312,10 @@
             "type" : "string"
           },
           {
-            "defaultValue" : "7d",
-            "label" : "统计周期",
-            "label@en" : "Stats Period",
-            "label@zh-Hans" : "统计周期",
+            "defaultValue" : "30d",
+            "label" : "默认统计周期",
+            "label@en" : "Default Stats Period",
+            "label@zh-Hans" : "默认统计周期",
             "name" : "STAT_PERIOD",
             "options" : [
               {
@@ -293,6 +329,18 @@
                 "label@en" : "30 days",
                 "label@zh-Hans" : "30 天",
                 "value" : "30d"
+              },
+              {
+                "label" : "90 天",
+                "label@en" : "90 days",
+                "label@zh-Hans" : "90 天",
+                "value" : "90d"
+              },
+              {
+                "label" : "全部 (12 月)",
+                "label@en" : "All (12 mo)",
+                "label@zh-Hans" : "全部 (12 月)",
+                "value" : "all"
               }
             ],
             "required" : false,
@@ -303,7 +351,7 @@
       "name" : "Codex (本地)",
       "parameterValues" : {
         "DATA_DIR" : "~\/.codex",
-        "STAT_PERIOD" : "7d"
+        "STAT_PERIOD" : "30d"
       },
       "refreshIntervalSeconds" : 300,
       "stateID" : "codex-local"
