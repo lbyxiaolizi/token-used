@@ -208,6 +208,26 @@ PRs welcome. Useful directions:
 
 Please run `python3 plugins/<your-plugin>.py --usageboard-param USAGEBOARD_LANGUAGE=en` and confirm the JSON validates against existing fixtures before submitting.
 
+Run the test suite locally — same one CI runs:
+
+```bash
+python3 -m unittest tests.test_plugins -v
+```
+
+### 🛠 Maintainers — regenerating the patch
+
+`patches/usageboard-build-and-refresh.patch` is a real `git diff` and must stay one. If you have [RTK (Rust Token Killer)](https://github.com/uniStark/rtk) installed in Claude Code, its hook intercepts `git diff` / `git status` etc. and rewrites the output into a token-compressed form that **is not a valid unified diff**. To regenerate the patch correctly:
+
+```bash
+cd ../UsageBoard
+# bypass the RTK hook so git produces a real unified diff
+rtk proxy git diff > ../TokenUsed/patches/usageboard-build-and-refresh.patch
+# verify on a clean tree
+git stash && git apply --check ../TokenUsed/patches/usageboard-build-and-refresh.patch && git stash pop
+```
+
+CI (`.github/workflows/ci.yml`) runs `git apply --check` on every push so a malformed patch fails the build before it can ship.
+
 ---
 
 ## 📄 License

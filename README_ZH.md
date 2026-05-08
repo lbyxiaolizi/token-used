@@ -208,6 +208,26 @@ python3 "$HOME/Library/Application Support/UsageBoard/plugins/daily-overview-plu
 
 提交前请跑一次 `python3 plugins/<你的插件>.py --usageboard-param USAGEBOARD_LANGUAGE=en` 确认输出符合现有 schema。
 
+本地跑一遍测试（CI 也跑这套）：
+
+```bash
+python3 -m unittest tests.test_plugins -v
+```
+
+### 🛠 维护者——重新生成 patch
+
+`patches/usageboard-build-and-refresh.patch` 是真正的 `git diff`，必须一直保持是合法的 unified diff。如果你在 Claude Code 里装了 [RTK (Rust Token Killer)](https://github.com/uniStark/rtk)，它的 hook 会拦截 `git diff` / `git status` 等命令，把输出压缩成省 token 的伪格式——**这种格式不是合法的 unified diff**，`git apply` 会报 `No valid patches in input`。正确重生成方式：
+
+```bash
+cd ../UsageBoard
+# 用 rtk proxy 绕过 hook，让 git 输出原生 unified diff
+rtk proxy git diff > ../TokenUsed/patches/usageboard-build-and-refresh.patch
+# 在 clean working tree 上验证
+git stash && git apply --check ../TokenUsed/patches/usageboard-build-and-refresh.patch && git stash pop
+```
+
+CI (`.github/workflows/ci.yml`) 在每次 push 都跑 `git apply --check`，patch 一旦坏掉直接挂 CI，避免坏 patch 流到 main。
+
 ---
 
 ## 📄 许可
