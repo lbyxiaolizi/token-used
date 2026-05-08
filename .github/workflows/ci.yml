@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  unit-tests:
+    name: Plugin unit + e2e tests
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run tests
+        run: python3 -m unittest tests.test_plugins -v
+
+  patch-applies:
+    name: UsageBoard patch still applies
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Clone UsageBoard upstream
+        run: |
+          git clone --depth=1 https://github.com/marsmay/UsageBoard.git ../UsageBoard
+      - name: git apply --check
+        run: |
+          cd ../UsageBoard
+          git apply --check "$GITHUB_WORKSPACE/patches/usageboard-build-and-refresh.patch"
+
+  plugin-smoke:
+    name: Plugins produce valid JSON
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Generate dynamic fixtures
+        run: python3 tests/_fixture_gen.py "$RUNNER_TEMP/fixtures"
+      - name: Smoke single-CLI plugins
+        run: |
+          set -e
+          assert_json() {
+            python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get('schemaVersion')==1; assert 'items' in d and len(d['items']) >= 1; assert 'chart' in d and len(d['chart']['buckets']) > 0; print('ok')"
+          }
+          python3 plugins/claude-code-usage-plugin.py \
+            --usageboard-param "DATA_DIR=$RUNNER_TEMP/fixtures/claude" \
+            --usageboard-param "STAT_PERIOD=7d" \
+            --usageboard-param "USAGEBOARD_LANGUAGE=en" | assert_json
+          python3 plugins/gemini-cli-usage-plugin.py \
+            --usageboard-param "DATA_DIR=$RUNNER_TEMP/fixtures/gemini" \
+            --usageboard-param "STAT_PERIOD=7d" \
+            --usageboard-param "USAGEBOARD_LANGUAGE=en" | assert_json
+          python3 plugins/codex-local-usage-plugin.py \
+            --usageboard-param "DATA_DIR=$RUNNER_TEMP/fixtures/codex" \
+            --usageboard-param "STAT_PERIOD=7d" \
+            --usageboard-param "USAGEBOARD_LANGUAGE=en" | assert_json
+      - name: Smoke daily-overview
+        run: |
+          python3 plugins/daily-overview-plugin.py \
+            --usageboard-param "CLAUDE_DIR=$RUNNER_TEMP/fixtures/claude" \
+            --usageboard-param "GEMINI_DIR=$RUNNER_TEMP/fixtures/gemini" \
+            --usageboard-param "CODEX_DIR=$RUNNER_TEMP/fixtures/codex" \
+            --usageboard-param "CHART_PERIOD=7d" \
+            --usageboard-param "USAGEBOARD_LANGUAGE=en" \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['schemaVersion']==1; assert len(d['chart']['buckets'])==7; assert len(d['items']) >= 4; print('ok')"
