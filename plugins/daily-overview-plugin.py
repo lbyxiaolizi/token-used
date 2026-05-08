@@ -116,9 +116,9 @@ def main() -> int:
         default_period = next(iter(dims))
     default_dim = dims[default_period]
 
-    # badge：今日合计（与 period 无关，取 7d dimension 当日数据；fallback 到 default）
-    today_items = (dims.get("7d") or default_dim).get("items") or []
-    badge = today_items[0].get("trailingText") if today_items else None
+    # badge：取当前 default dimension 的 hero trailingText，跟用户首次看到的数字一致
+    default_items = default_dim.get("items") or []
+    badge = default_items[0].get("trailingText") if default_items else None
 
     out = {
         "schemaVersion": SCHEMA_VERSION,

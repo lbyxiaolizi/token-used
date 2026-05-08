@@ -855,13 +855,15 @@ def build_per_cli_dimension(*, scan_fn: Callable, data_dir: str, period: str,
 def build_overview_dimension(*, claude_dir: str, gemini_dir: str, codex_dir: str,
                               period: str, mode: str, language: str
                               ) -> dict[str, Any]:
-    """daily-overview 的 dimension：三家并行 + 当日 hero + per-model 行 + chart。"""
+    """daily-overview 的 dimension：三家并行 + period 内累计 hero + per-model 行 + chart。
+
+    Hero 显示该 period 窗口内所有 bucket 累计，model 行也按 period 总量排序——
+    切换 7d/30d/90d/all 时数字会立即变化（之前固定 today_total 导致 7d 与 30d 看着一样）。
+    """
     from concurrent.futures import ThreadPoolExecutor
 
     chart_meta, unit = period_chart_buckets(period, today=datetime.now().astimezone().date())
-    today_id = chart_meta[-1]["id"] if chart_meta else None
     by_bucket: dict[str, dict[str, int]] = {b["id"]: {} for b in chart_meta}
-    by_model_today: dict[str, int] = {}
 
     def _run(scan_fn, data_dir):
         return scan_fn(data_dir, period, mode=mode)
@@ -879,31 +881,31 @@ def build_overview_dimension(*, claude_dir: str, gemini_dir: str, codex_dir: str
                 print(f"[daily-overview] scan_{prov} failed: {exc}", file=sys.stderr)
                 continue
             merge_bucket_maps(by_bucket, sub_by_bucket)
-            if today_id:
-                for m, t in sub_by_bucket.get(today_id, {}).items():
-                    by_model_today[m] = by_model_today.get(m, 0) + int(t)
 
-    today_total = sum(by_model_today.values())
-    sorted_models = sorted(by_model_today.items(), key=lambda kv: -kv[1])
+    # period 内所有 bucket 累计
+    period_model_totals: dict[str, int] = {}
+    for models in by_bucket.values():
+        for m, t in models.items():
+            period_model_totals[m] = period_model_totals.get(m, 0) + int(t)
+    period_total = sum(period_model_totals.values())
+    sorted_models = sorted(period_model_totals.items(), key=lambda kv: -kv[1])
 
     items: list[dict[str, Any]] = []
-    if today_total > 0:
-        total_m = round(today_total / 1_000_000, 2)
-        hero_key = ("this_week_total" if unit == "week" else
-                    "this_month_total" if unit == "month" else
-                    "today_total")
+    if period_total > 0:
+        total_m = round(period_total / 1_000_000, 2)
+        p_label = period_label(period, language)
         items.append({
-            "id": "overview-today-total",
-            "name": f"{tr(language, hero_key)}  ▸  {fmt_tokens(today_total, language)} tokens",
+            "id": "overview-period-total",
+            "name": f"{p_label}  ▸  {fmt_tokens(period_total, language)} tokens",
             "used": total_m, "limit": max(total_m, 0.01),
             "displayStyle": "ratio",
             "resetAt": None,
             "status": "normal", "color": "blue",
-            "trailingText": fmt_tokens(today_total, language),
+            "trailingText": fmt_tokens(period_total, language),
         })
         for i, (model, tokens) in enumerate(sorted_models):
             tokens_m = round(tokens / 1_000_000, 2)
-            share = tokens / today_total if today_total else 0
+            share = tokens / period_total if period_total else 0
             color = "red" if share >= 0.5 else "orange" if share >= 0.25 else "blue"
             items.append({
                 "id": f"overview-{i}-{model}",
@@ -915,13 +917,8 @@ def build_overview_dimension(*, claude_dir: str, gemini_dir: str, codex_dir: str
                 "trailingText": fmt_tokens(tokens, language),
             })
 
-    # daily-overview chart 用全 model_totals 排序
-    aggregated_totals: dict[str, int] = {}
-    for models in by_bucket.values():
-        for m, t in models.items():
-            aggregated_totals[m] = aggregated_totals.get(m, 0) + int(t)
-    chart = _build_chart(by_bucket, aggregated_totals, chart_meta, period, unit, language)
+    chart = _build_chart(by_bucket, period_model_totals, chart_meta, period, unit, language)
     if not any(b["segments"] for b in chart["buckets"]):
-        chart["message"] = tr(language, "no_data_today")
+        chart["message"] = tr(language, "no_data")
     return {"label": period_label(period, language), "bucketUnit": unit,
             "items": items, "chart": chart}
