@@ -9,7 +9,7 @@ index 36fecf5..e4d6e73 100644
  
  import PackageDescription
 diff --git a/Sources/UsageBoardApp/DashboardView.swift b/Sources/UsageBoardApp/DashboardView.swift
-index 298556f..18114fb 100644
+index 298556f..002d02e 100644
 --- a/Sources/UsageBoardApp/DashboardView.swift
 +++ b/Sources/UsageBoardApp/DashboardView.swift
 @@ -30,6 +30,16 @@ struct DashboardView: View {
@@ -95,7 +95,15 @@ index 298556f..18114fb 100644
      }
  
      private func scrollToSelectedTab(with proxy: ScrollViewProxy) {
-@@ -368,7 +379,7 @@ struct UsageItemRow: View {
+@@ -362,13 +373,14 @@ struct UsageItemRow: View {
+             Text(item.name)
+                 .lineLimit(1)
+                 .truncationMode(.tail)
+-                .frame(width: 120, alignment: .leading)
++                .minimumScaleFactor(0.75)
++                .frame(minWidth: 100, idealWidth: 180, maxWidth: 240, alignment: .leading)
+ 
+             UsageProgressBar(value: item.progress, label: item.displayValue(), color: item.color)
                  .frame(height: 18)
                  .layoutPriority(1)
  
