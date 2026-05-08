@@ -4,3 +4,6 @@ __pycache__/
 *.bak
 .idea/
 .vscode/
+widget/build/
+widget/**/xcuserdata/
+widget/**/*.xcworkspace/xcuserdata/
