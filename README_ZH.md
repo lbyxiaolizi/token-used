@@ -24,7 +24,7 @@
 
 ---
 
-## 特性
+## ✨ 特性
 
 - **不依赖任何远程 API**——完全离线读本地 JSONL/JSON 会话文件，**不需要 ChatGPT 订阅 token**。
 - **三家 CLI 一个面板**——Claude Code / Gemini CLI / Codex CLI 用量按模型聚合。
@@ -35,7 +35,7 @@
 
 ---
 
-## 依赖
+## 📋 依赖
 
 | 组件 | 版本 | 说明 |
 |---|---|---|
@@ -55,9 +55,9 @@
 
 ---
 
-## 快速开始
+## 🚀 快速开始
 
-### 路径 A：Homebrew（推荐）
+### 🍺 路径 A：Homebrew（推荐）
 
 ```bash
 brew tap unistark/tap
@@ -66,7 +66,7 @@ brew install tokenused
 
 插件会装到 `$(brew --prefix)/opt/tokenused/share/tokenused/`。`brew info tokenused` 会打印四步激活说明（打补丁构建 UsageBoard、拷贝插件、可选样例配置）。
 
-### 路径 B：手动
+### 🛠️ 路径 B：手动
 
 ```bash
 # 1. 克隆
@@ -95,7 +95,7 @@ sed "s|__HOME__|$HOME|g" examples/config.example.json > "$HOME/Library/Applicati
 
 ---
 
-## 补丁修改了什么
+## 🩹 补丁修改了什么
 
 `patches/usageboard-build-and-refresh.patch` 给上游 UsageBoard 做了三处小改：
 
@@ -109,7 +109,7 @@ sed "s|__HOME__|$HOME|g" examples/config.example.json > "$HOME/Library/Applicati
 
 ---
 
-## 配置
+## ⚙️ 配置
 
 四个插件的所有参数都从 UsageBoard 设置面板读取，默认值开箱即用。需要时再覆写。
 
@@ -139,7 +139,7 @@ sed "s|__HOME__|$HOME|g" examples/config.example.json > "$HOME/Library/Applicati
 
 ---
 
-## 仓库结构
+## 📁 仓库结构
 
 ```
 TokenUsed/
@@ -161,7 +161,7 @@ TokenUsed/
 
 ---
 
-## 原生 Widget 状态
+## 🍎 原生 Widget 状态
 
 `widget/` 下是一个完整的 WidgetKit + SwiftUI Xcode 项目（Small / Medium / Large 三尺寸，Swift Charts 7 天柱状图）。本地能 build 能跑，但 **macOS 15+ Sequoia / Tahoe** 的系统 daemon `chronod` 拒绝把 Personal Team 签的 widget extension 加进桌面 widget gallery——**需要付费 [Apple Developer Program](https://developer.apple.com/programs/)（$99/年）**才能真正用上。
 
@@ -169,7 +169,7 @@ TokenUsed/
 
 ---
 
-## 数据来源
+## 📊 数据来源
 
 | 插件 | 读取位置 | 字段 |
 |---|---|---|
@@ -181,7 +181,7 @@ TokenUsed/
 
 ---
 
-## 排错
+## 🐛 排错
 
 **Panel 显示 "JSON 解析失败"**：手动跑插件看原始报错：
 ```bash
@@ -197,7 +197,7 @@ python3 "$HOME/Library/Application Support/UsageBoard/plugins/daily-overview-plu
 
 ---
 
-## 贡献
+## 🤝 贡献
 
 欢迎 PR。可以折腾的方向：
 
@@ -210,11 +210,11 @@ python3 "$HOME/Library/Application Support/UsageBoard/plugins/daily-overview-plu
 
 ---
 
-## 许可
+## 📄 许可
 
 MIT，见 [LICENSE](./LICENSE)。插件脚本可自由修改与再分发。
 
-## 致谢
+## 🙏 致谢
 
 - [UsageBoard](https://github.com/marsmay/UsageBoard) —— 本项目挂靠的菜单栏宿主。
 - [lobe-icons](https://github.com/lobehub/lobe-icons) —— `examples/config.example.json` 引用的插件图标集。

@@ -24,7 +24,7 @@
 
 ---
 
-## Features
+## ✨ Features
 
 - **Zero remote API calls** — everything is read from local JSONL/JSON session files; no ChatGPT subscription or quota API needed.
 - **Three CLIs in one panel** — Claude Code, Gemini CLI, Codex CLI usage aggregated by model.
@@ -35,7 +35,7 @@
 
 ---
 
-## Requirements
+## 📋 Requirements
 
 | Component | Version | Notes |
 |---|---|---|
@@ -55,9 +55,9 @@ CLIs with zero data hide automatically — install all four plugins anyway and u
 
 ---
 
-## Quick Start
+## 🚀 Quick Start
 
-### Option A: Homebrew (recommended)
+### 🍺 Option A: Homebrew (recommended)
 
 ```bash
 brew tap unistark/tap
@@ -66,7 +66,7 @@ brew install tokenused
 
 Plugins land in `$(brew --prefix)/opt/tokenused/share/tokenused/`. `brew info tokenused` prints the four-step activation guide (patch + build UsageBoard, copy plugins, optional config drop-in).
 
-### Option B: Manual
+### 🛠️ Option B: Manual
 
 ```bash
 # 1. Clone
@@ -95,7 +95,7 @@ If anything goes wrong, see [Troubleshooting](#troubleshooting) below.
 
 ---
 
-## What the Patch Changes
+## 🩹 What the Patch Changes
 
 `patches/usageboard-build-and-refresh.patch` makes three small changes to upstream UsageBoard:
 
@@ -109,7 +109,7 @@ If you'd rather use UsageBoard unmodified, the plugins still work — you just l
 
 ---
 
-## Configuration
+## ⚙️ Configuration
 
 All four plugins read parameters from the UsageBoard plugin settings UI. Defaults work out of the box. Override only when needed.
 
@@ -139,7 +139,7 @@ The four plugins use **different** colour rules on purpose:
 
 ---
 
-## Project Layout
+## 📁 Project Layout
 
 ```
 TokenUsed/
@@ -161,7 +161,7 @@ TokenUsed/
 
 ---
 
-## Native Widget Status
+## 🍎 Native Widget Status
 
 `widget/` contains a complete WidgetKit + SwiftUI Xcode project (Small / Medium / Large sizes, Swift Charts 7-day bar chart). It builds and runs locally, but on **macOS 15+ Sequoia / Tahoe** the system daemon `chronod` refuses to register Personal-Team-signed widget extensions in the desktop widget gallery — **you need a paid [Apple Developer Program](https://developer.apple.com/programs/) ($99/yr) account** to actually use it.
 
@@ -169,7 +169,7 @@ If you don't pay for the Program, stick with the menu-bar UsageBoard panel — i
 
 ---
 
-## Data Sources
+## 📊 Data Sources
 
 | Plugin | Reads from | Field |
 |---|---|---|
@@ -181,7 +181,7 @@ The overview plugin reads all three in parallel.
 
 ---
 
-## Troubleshooting
+## 🐛 Troubleshooting
 
 **Panel shows "JSON 解析失败 / failed to parse"**: run the plugin manually to see the raw error:
 ```bash
@@ -197,7 +197,7 @@ python3 "$HOME/Library/Application Support/UsageBoard/plugins/daily-overview-plu
 
 ---
 
-## Contributing
+## 🤝 Contributing
 
 PRs welcome. Useful directions:
 
@@ -210,11 +210,11 @@ Please run `python3 plugins/<your-plugin>.py --usageboard-param USAGEBOARD_LANGU
 
 ---
 
-## License
+## 📄 License
 
 MIT — see [LICENSE](./LICENSE). Plugin scripts are free to modify and redistribute.
 
-## Acknowledgements
+## 🙏 Acknowledgements
 
 - [UsageBoard](https://github.com/marsmay/UsageBoard) — the menu-bar host this project plugs into.
 - [lobe-icons](https://github.com/lobehub/lobe-icons) — plugin icon set referenced in `examples/config.example.json`.
