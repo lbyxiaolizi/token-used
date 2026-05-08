@@ -1,6 +1,10 @@
 # 桌面小组件方案
 
-> **更新（2026-05-08）**：方案 B（独立 WidgetKit 应用）已落地，源码在 [`widget/`](../widget/)。下文保留三方案对比作为设计依据。
+> **更新（2026-05-08）**：方案 B（独立 WidgetKit 应用）代码已实现，源码在 [`widget/`](../widget/)。
+>
+> **⚠️ macOS 15+ Sequoia / 26 Tahoe 实测限制**：经过完整签名调试，确认 Personal Team（免费 Apple ID）签的 widget extension **无法进入桌面 widget gallery**——系统 daemon `chronod` 在扫描过滤层拒绝 Apple Development 证书的 widget。这是 Apple 安全策略，社区/Apple Developer Forums 多次确认。要让方案 B 真正可用，需要付费 [Apple Developer Program](https://developer.apple.com/programs/)（$99/年，提供 Developer ID 证书）。
+>
+> 没付费 Program 的用户推荐走方案 A（Übersicht）。下文保留三方案对比作为设计依据。
 
 当前菜单栏面板需要点击图标才能查看。如果想让今日总览**常驻桌面**，下面是三条可选路径——按工程量从低到高排列。
 
