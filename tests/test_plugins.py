@@ -34,6 +34,44 @@ def _today_buckets(days: int = 7) -> list[datetime]:
 
 # ─────────────────────────── pure-function tests ────────────────────────────
 
+class PeriodHelpersTests(unittest.TestCase):
+    def test_period_window_lengths(self):
+        ref = date(2026, 5, 9)
+        self.assertEqual(_shared.period_window("7d",  today=ref),
+                         (date(2026, 5, 3), ref))
+        self.assertEqual(_shared.period_window("30d", today=ref),
+                         (date(2026, 4, 10), ref))
+        self.assertEqual(_shared.period_window("90d", today=ref),
+                         (date(2026, 2, 9), ref))
+        # all = 12 个自然月含本月：2026-05 → start = 2025-06-01
+        self.assertEqual(_shared.period_window("all", today=ref),
+                         (date(2025, 6, 1), ref))
+
+    def test_period_chart_buckets_count_and_unit(self):
+        ref = date(2026, 5, 9)
+        b7,  u7  = _shared.period_chart_buckets("7d",  today=ref)
+        b30, u30 = _shared.period_chart_buckets("30d", today=ref)
+        b90, u90 = _shared.period_chart_buckets("90d", today=ref)
+        ba,  ua  = _shared.period_chart_buckets("all", today=ref)
+        self.assertEqual((len(b7),  u7),  (7,  "day"))
+        self.assertEqual((len(b30), u30), (30, "day"))
+        self.assertEqual((len(b90), u90), (13, "week"))
+        self.assertEqual((len(ba),  ua),  (12, "month"))
+
+    def test_bucket_id_for_date(self):
+        d = date(2026, 5, 9)
+        self.assertEqual(_shared.bucket_id_for_date(d, "day"),   "2026-05-09")
+        self.assertEqual(_shared.bucket_id_for_date(d, "week"),  "2026-W19")
+        self.assertEqual(_shared.bucket_id_for_date(d, "month"), "2026-05")
+
+    def test_normalize_period(self):
+        self.assertEqual(_shared.normalize_period("7d"), "7d")
+        self.assertEqual(_shared.normalize_period("90D"), "90d")
+        self.assertEqual(_shared.normalize_period("ALL"), "all")
+        self.assertEqual(_shared.normalize_period(None), _shared.DEFAULT_PERIOD)
+        self.assertEqual(_shared.normalize_period("xx"), _shared.DEFAULT_PERIOD)
+
+
 class FmtTokensTests(unittest.TestCase):
     def test_en_units(self):
         self.assertEqual(_shared.fmt_tokens(0, "en"), "0")
@@ -420,6 +458,42 @@ class PluginEndToEndTests(unittest.TestCase):
         ])
         self.assertEqual(out["schemaVersion"], 1)
         self.assertGreater(len(out["items"]), 0)
+
+    def test_dimensions_per_cli_plugin(self):
+        """每个 per-CLI plugin 输出含 4 个 dimension + 正确 bucketUnit 与桶数。"""
+        out = self._run("claude-code-usage-plugin.py", [
+            "--usageboard-param", f"DATA_DIR={self.paths['claude']}",
+            "--usageboard-param", "STAT_PERIOD=7d",
+        ])
+        self.assertIn("dimensions", out)
+        self.assertEqual(set(out["dimensions"].keys()), {"7d", "30d", "90d", "all"})
+        self.assertEqual(out["defaultDimension"], "7d")
+        self.assertEqual(out["dimensionOrder"], ["7d", "30d", "90d", "all"])
+        self.assertEqual(out["dimensions"]["7d"]["bucketUnit"], "day")
+        self.assertEqual(out["dimensions"]["30d"]["bucketUnit"], "day")
+        self.assertEqual(out["dimensions"]["90d"]["bucketUnit"], "week")
+        self.assertEqual(out["dimensions"]["all"]["bucketUnit"], "month")
+        self.assertEqual(len(out["dimensions"]["7d"]["chart"]["buckets"]), 7)
+        self.assertEqual(len(out["dimensions"]["30d"]["chart"]["buckets"]), 30)
+        self.assertEqual(len(out["dimensions"]["90d"]["chart"]["buckets"]), 13)
+        self.assertEqual(len(out["dimensions"]["all"]["chart"]["buckets"]), 12)
+        # 顶层 items / chart 等于 default dimension 的
+        self.assertEqual(out["chart"]["bucketUnit"], "day")
+        self.assertEqual(len(out["chart"]["buckets"]), 7)
+
+    def test_dimensions_daily_overview_90d_default(self):
+        out = self._run("daily-overview-plugin.py", [
+            "--usageboard-param", f"CLAUDE_DIR={self.paths['claude']}",
+            "--usageboard-param", f"GEMINI_DIR={self.paths['gemini']}",
+            "--usageboard-param", f"CODEX_DIR={self.paths['codex']}",
+            "--usageboard-param", "CHART_PERIOD=90d",
+        ])
+        self.assertEqual(out["defaultDimension"], "90d")
+        self.assertEqual(out["dimensions"]["90d"]["bucketUnit"], "week")
+        self.assertEqual(len(out["chart"]["buckets"]), 13)
+        # all 维度也存在
+        self.assertEqual(out["dimensions"]["all"]["bucketUnit"], "month")
+        self.assertEqual(len(out["dimensions"]["all"]["chart"]["buckets"]), 12)
 
 
 if __name__ == "__main__":
