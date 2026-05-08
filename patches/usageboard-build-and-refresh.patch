@@ -1,0 +1,22 @@
+Package.swift                             | 2 +-
+ Sources/UsageBoardApp/DashboardView.swift | 1 +
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+
+--- Changes ---
+
+Package.swift
+  @@ -1,4 +1,4 @@
+  -// swift-tools-version: 6.3
+  +// swift-tools-version: 6.2
+   // The swift-tools-version declares the minimum version of Swift required to build this package.
+   
+   import PackageDescription
+  +1 -1
+
+Sources/UsageBoardApp/DashboardView.swift
+  @@ -100,6 +100,7 @@ struct DashboardView: View {
+  +            store.refreshAll()
+           }
+           .onChange(of: enabledPlugins.map(\.id)) { _ in
+               ensureSelectedTab()
+  +1 -0
