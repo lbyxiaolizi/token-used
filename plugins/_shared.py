@@ -31,10 +31,19 @@ PARSER_VERSIONS = {
 TOKEN_MODES = ("billable", "raw")
 DEFAULT_TOKEN_MODE = "billable"
 
+PERIODS = ("7d", "30d", "90d", "all")
+DEFAULT_PERIOD = "30d"
+
 
 def normalize_token_mode(value: str | None) -> str:
     v = (value or "").strip().lower()
     return v if v in TOKEN_MODES else DEFAULT_TOKEN_MODE
+
+
+def normalize_period(value: str | None) -> str:
+    v = (value or "").strip().lower()
+    return v if v in PERIODS else DEFAULT_PERIOD
+
 
 CACHE_PRUNE_DAYS = 45  # cache 中超过该天数无活动的文件 entry 会被清理
 
@@ -44,7 +53,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "scan_failed": {"en": "Failed to scan sessions", "zh-Hans": "扫描会话失败"},
     "period_7d": {"en": "7d", "zh-Hans": "7 天"},
     "period_30d": {"en": "30d", "zh-Hans": "30 天"},
-    "today_total": {"en": "Today total", "zh-Hans": "今日合计"},
+    "period_90d": {"en": "90d", "zh-Hans": "90 天"},
+    "period_all": {"en": "All", "zh-Hans": "全部"},
+    "today_total": {"en": "Today", "zh-Hans": "今日合计"},
+    "this_week_total": {"en": "This week", "zh-Hans": "本周合计"},
+    "this_month_total": {"en": "This month", "zh-Hans": "本月合计"},
     "total_tokens_for_period": {"en": "{period} total", "zh-Hans": "{period} 总用量"},
     "mode_billable": {"en": "billable", "zh-Hans": "计费"},
     "mode_raw": {"en": "raw", "zh-Hans": "原始"},
@@ -93,28 +106,93 @@ def parse_iso(value: Any) -> datetime | None:
         return None
 
 
+def period_window(period: str, *, today: date | None = None) -> tuple[date, date]:
+    """返回该 period 在 daily 粒度上的 (start_date, end_date)，给 mtime cutoff / 文件枚举用。
+
+    7d / 30d / 90d → 滑动 N 天；all → 12 个自然月（含本月）。
+    """
+    base = today or datetime.now().astimezone().date()
+    if period == "7d":   return base - timedelta(days=6),  base
+    if period == "30d":  return base - timedelta(days=29), base
+    if period == "90d":  return base - timedelta(days=89), base
+    if period == "all":
+        # 12 个自然月（含本月）
+        total = base.year * 12 + base.month - 1 - 11
+        y, m = total // 12, total % 12 + 1
+        return date(y, m, 1), base
+    return base - timedelta(days=6), base
+
+
+def period_chart_buckets(period: str, *, today: date | None = None
+                         ) -> tuple[list[dict[str, str]], str]:
+    """返回 (buckets_meta, bucket_unit)。
+
+    buckets_meta 每项含 id / label / start / end（ISO 日期）。bucket_unit ∈ {day, week, month}。
+    7d、30d → daily；90d → 13 weekly（ISO week）；all → 12 monthly。
+    """
+    base = today or datetime.now().astimezone().date()
+    if period in ("7d", "30d"):
+        days = 7 if period == "7d" else 30
+        start = base - timedelta(days=days - 1)
+        out = []
+        for i in range(days):
+            d = start + timedelta(days=i)
+            out.append({"id": d.isoformat(), "label": d.strftime("%m-%d"),
+                        "start": d.isoformat(), "end": d.isoformat()})
+        return out, "day"
+    if period == "90d":
+        weekday = base.weekday()  # 0=Mon
+        this_monday = base - timedelta(days=weekday)
+        out = []
+        for i in range(12, -1, -1):
+            ws = this_monday - timedelta(weeks=i)
+            we = ws + timedelta(days=6)
+            y, w, _ = ws.isocalendar()
+            out.append({"id": f"{y}-W{w:02d}", "label": ws.strftime("%m-%d"),
+                        "start": ws.isoformat(), "end": we.isoformat()})
+        return out, "week"
+    if period == "all":
+        out = []
+        for i in range(11, -1, -1):
+            total = base.year * 12 + base.month - 1 - i
+            y, m = total // 12, total % 12 + 1
+            ms = date(y, m, 1)
+            me = (date(y + 1, 1, 1) if m == 12 else date(y, m + 1, 1)) - timedelta(days=1)
+            out.append({"id": f"{y:04d}-{m:02d}", "label": f"{m}月",
+                        "start": ms.isoformat(), "end": me.isoformat()})
+        return out, "month"
+    return period_chart_buckets("7d", today=base)
+
+
+# 兼容性 stub: 老调用点给 datetime 接口；返回 daily datetime 列表（旧 stat_range 行为）
 def stat_range(period: str, *, now: datetime | None = None
                 ) -> tuple[datetime, datetime, list[datetime]]:
-    """返回 (start, end, buckets) — 本地时区的日桶序列。
-
-    period: '7d' or '30d'。其他值按 7d 处理。
-    """
-    days = 30 if period == "30d" else 7
     base = (now or datetime.now()).astimezone()
-    today = base.date()
-    start_date = today - timedelta(days=days - 1)
-    start = datetime.combine(start_date, time.min, tzinfo=base.tzinfo)
-    end = datetime.combine(today, time.max, tzinfo=base.tzinfo)
-    buckets = [start + timedelta(days=i) for i in range(days)]
+    start_d, end_d = period_window(period, today=base.date())
+    days_count = (end_d - start_d).days + 1
+    start = datetime.combine(start_d, time.min, tzinfo=base.tzinfo)
+    end = datetime.combine(end_d, time.max, tzinfo=base.tzinfo)
+    buckets = [start + timedelta(days=i) for i in range(days_count)]
     return start, end, buckets
 
 
 def bucket_id(dt: datetime | date) -> str:
+    """Daily bucket id（cache 内部仍按 daily 粒度存）。"""
     return dt.strftime("%Y-%m-%d")
 
 
 def bucket_label(dt: datetime | date) -> str:
     return dt.strftime("%m-%d")
+
+
+def bucket_id_for_date(d: date, unit: str) -> str:
+    """把一个日期映射到 day / week / month 桶 id。"""
+    if unit == "week":
+        y, w, _ = d.isocalendar()
+        return f"{y}-W{w:02d}"
+    if unit == "month":
+        return f"{d.year:04d}-{d.month:02d}"
+    return d.isoformat()
 
 
 def current_tz_offset_seconds() -> int:
@@ -297,15 +375,18 @@ def aggregate_with_cache(
     parser_version: str,
     bucket_set: set[str],
     mode: str = DEFAULT_TOKEN_MODE,
+    bucket_unit: str = "day",
     cache_root: Path | None = None,
 ) -> tuple[dict[str, dict[str, int]], dict[str, int]]:
     """File-level cache 编排（v2 schema：双值 raw/billable 并存）。
 
-    parse_file(path) 必须是纯函数，返回 {bucket_id: {model: {"raw": N, "billable": N}}}，
-    覆盖该文件**所有**桶（不要预过滤窗口——cache 服务于 7d/30d 双窗口）。
-    切换 `mode` 时不会触发 reparse，aggregate 阶段按 mode 投影到 int。
+    parse_file(path) 必须是纯函数，返回 {daily_bucket_id: {model: {"raw": N, "billable": N}}}，
+    覆盖该文件**所有**日桶（cache 永远 daily 粒度）。
 
-    返回 (by_bucket, model_totals) 已按 bucket_set 过滤、按 mode 投影。
+    aggregate 阶段把 daily_id 按 bucket_unit 投影到 day/week/month 桶 id，并按
+    bucket_set 过滤、按 mode 投影到 int。切换 mode/period/unit 都不触发 reparse。
+
+    返回 (by_bucket, model_totals) 的 key 都是 target unit 的桶 id。
     """
     mode = normalize_token_mode(mode)
     expanded_dir = os.path.realpath(os.path.expanduser(data_dir))
@@ -412,15 +493,22 @@ def aggregate_with_cache(
             cache["updatedAt"] = utc_now_iso()
             save_cache_atomic(cache_path, cache)
 
-    # Aggregate within window，按 mode 投影 {raw, billable} → int
+    # Aggregate within window：daily_id → date → target_unit_id 投影 + bucket_set 过滤 + mode 投影
     by_bucket: dict[str, dict[str, int]] = {}
     model_totals: dict[str, int] = {}
     for entry in new_files.values():
         by = entry.get("byBucket") or {}
-        for b, models in by.items():
-            if not (isinstance(b, str) and b in bucket_set and isinstance(models, dict)):
+        for daily_id, models in by.items():
+            if not (isinstance(daily_id, str) and isinstance(models, dict)):
                 continue
-            bag = by_bucket.setdefault(b, {})
+            try:
+                d = date.fromisoformat(daily_id)
+            except (ValueError, TypeError):
+                continue
+            target_id = bucket_id_for_date(d, bucket_unit)
+            if target_id not in bucket_set:
+                continue
+            bag = by_bucket.setdefault(target_id, {})
             for m, vals in models.items():
                 if not (isinstance(m, str) and isinstance(vals, dict)):
                     continue
@@ -600,6 +688,12 @@ def parse_codex_file(fp: str) -> dict[str, dict[str, dict[str, int]]]:
 _CODEX_FILENAME_DATE = re.compile(r"rollout-(\d{4}-\d{2}-\d{2})T")
 
 
+def _period_mtime_cutoff(period: str, *, today: date | None = None) -> float:
+    start_d, _ = period_window(period, today=today)
+    return (datetime.combine(start_d, time.min).astimezone()
+            - timedelta(days=2)).timestamp()
+
+
 def list_claude_files(data_dir: str, cutoff_ts: float) -> list[str]:
     expanded = os.path.expanduser(data_dir)
     files = glob.glob(os.path.join(expanded, "**", "*.jsonl"), recursive=True)
@@ -642,51 +736,192 @@ def list_codex_files(data_dir: str, start_date: date) -> list[str]:
 
 # ─────────────────────────── high-level provider scan ────────────────────────
 
-def scan_claude(data_dir: str, buckets: list[datetime], *,
+def scan_claude(data_dir: str, period: str, *,
                 mode: str = DEFAULT_TOKEN_MODE, cache_root: Path | None = None
-                ) -> tuple[dict[str, dict[str, int]], dict[str, int]]:
-    cutoff = mtime_cutoff(buckets[0])
+                ) -> tuple[dict[str, dict[str, int]], dict[str, int], list[dict[str, str]], str]:
+    """返回 (by_bucket, model_totals, chart_buckets_meta, bucket_unit)。"""
+    period = normalize_period(period)
+    today = datetime.now().astimezone().date()
+    cutoff = _period_mtime_cutoff(period, today=today)
     files = list_claude_files(data_dir, cutoff)
-    return aggregate_with_cache(
-        provider="claude",
-        data_dir=data_dir,
-        files=files,
-        parse_file=parse_claude_file,
+    chart_meta, unit = period_chart_buckets(period, today=today)
+    by_bucket, model_totals = aggregate_with_cache(
+        provider="claude", data_dir=data_dir,
+        files=files, parse_file=parse_claude_file,
         parser_version=PARSER_VERSIONS["claude"],
-        bucket_set={bucket_id(b) for b in buckets},
-        mode=mode,
-        cache_root=cache_root,
+        bucket_set={b["id"] for b in chart_meta},
+        mode=mode, bucket_unit=unit, cache_root=cache_root,
     )
+    return by_bucket, model_totals, chart_meta, unit
 
 
-def scan_gemini(data_dir: str, buckets: list[datetime], *,
+def scan_gemini(data_dir: str, period: str, *,
                 mode: str = DEFAULT_TOKEN_MODE, cache_root: Path | None = None
-                ) -> tuple[dict[str, dict[str, int]], dict[str, int]]:
-    cutoff = mtime_cutoff(buckets[0])
+                ) -> tuple[dict[str, dict[str, int]], dict[str, int], list[dict[str, str]], str]:
+    period = normalize_period(period)
+    today = datetime.now().astimezone().date()
+    cutoff = _period_mtime_cutoff(period, today=today)
     files = list_gemini_files(data_dir, cutoff)
-    return aggregate_with_cache(
-        provider="gemini",
-        data_dir=data_dir,
-        files=files,
-        parse_file=parse_gemini_file,
+    chart_meta, unit = period_chart_buckets(period, today=today)
+    by_bucket, model_totals = aggregate_with_cache(
+        provider="gemini", data_dir=data_dir,
+        files=files, parse_file=parse_gemini_file,
         parser_version=PARSER_VERSIONS["gemini"],
-        bucket_set={bucket_id(b) for b in buckets},
-        mode=mode,
-        cache_root=cache_root,
+        bucket_set={b["id"] for b in chart_meta},
+        mode=mode, bucket_unit=unit, cache_root=cache_root,
     )
+    return by_bucket, model_totals, chart_meta, unit
 
 
-def scan_codex(data_dir: str, buckets: list[datetime], *,
+def scan_codex(data_dir: str, period: str, *,
                mode: str = DEFAULT_TOKEN_MODE, cache_root: Path | None = None
-               ) -> tuple[dict[str, dict[str, int]], dict[str, int]]:
-    files = list_codex_files(data_dir, buckets[0].date())
-    return aggregate_with_cache(
-        provider="codex",
-        data_dir=data_dir,
-        files=files,
-        parse_file=parse_codex_file,
+               ) -> tuple[dict[str, dict[str, int]], dict[str, int], list[dict[str, str]], str]:
+    period = normalize_period(period)
+    today = datetime.now().astimezone().date()
+    start_d, _ = period_window(period, today=today)
+    files = list_codex_files(data_dir, start_d)
+    chart_meta, unit = period_chart_buckets(period, today=today)
+    by_bucket, model_totals = aggregate_with_cache(
+        provider="codex", data_dir=data_dir,
+        files=files, parse_file=parse_codex_file,
         parser_version=PARSER_VERSIONS["codex"],
-        bucket_set={bucket_id(b) for b in buckets},
-        mode=mode,
-        cache_root=cache_root,
+        bucket_set={b["id"] for b in chart_meta},
+        mode=mode, bucket_unit=unit, cache_root=cache_root,
     )
+    return by_bucket, model_totals, chart_meta, unit
+
+
+# ────────────────────────── high-level dimension builders ───────────────────
+
+def period_label(period: str, language: str) -> str:
+    key = {"7d": "period_7d", "30d": "period_30d",
+           "90d": "period_90d", "all": "period_all"}.get(period, "period_7d")
+    return tr(language, key)
+
+
+def _build_chart(by_bucket, model_totals, chart_meta, period, unit, language):
+    sorted_models = [m for m, _ in sorted(model_totals.items(), key=lambda x: -x[1])]
+    chart_buckets = []
+    for meta in chart_meta:
+        bid = meta["id"]
+        segs = [
+            {"model": m, "tokens": int(by_bucket.get(bid, {}).get(m, 0))}
+            for m in sorted_models if by_bucket.get(bid, {}).get(m, 0) > 0
+        ]
+        chart_buckets.append({
+            "id": bid, "label": meta["label"],
+            "start": meta["start"], "end": meta["end"],
+            "segments": segs,
+        })
+    msg = None if any(b["segments"] for b in chart_buckets) else tr(language, "no_data")
+    return {"kind": "line", "period": period, "bucketUnit": unit,
+            "buckets": chart_buckets, "message": msg}
+
+
+def build_per_cli_dimension(*, scan_fn: Callable, data_dir: str, period: str,
+                             mode: str, language: str, hero_id_prefix: str
+                             ) -> dict[str, Any]:
+    """组装一个 per-CLI plugin（claude/codex/gemini）的 dimension：hero + chart。"""
+    by_bucket, model_totals, chart_meta, unit = scan_fn(data_dir, period, mode=mode)
+    p_label = period_label(period, language)
+    m_label = tr(language, "mode_billable" if mode == "billable" else "mode_raw")
+
+    total = int(sum(model_totals.values()))
+    today_id = chart_meta[-1]["id"] if chart_meta else None
+    today_total = int(sum(by_bucket.get(today_id, {}).values())) if today_id else 0
+    peak_total = int(max((sum(v.values()) for v in by_bucket.values()), default=0))
+    today_m = round(today_total / 1_000_000, 2)
+    peak_m = round(peak_total / 1_000_000, 2)
+    ratio = (today_total / peak_total) if peak_total > 0 else 0
+    status = "critical" if ratio >= 1.0 else "warning" if ratio >= 0.8 else "normal"
+    color = "red" if ratio >= 1.0 else "orange" if ratio >= 0.8 else "blue"
+
+    items: list[dict[str, Any]] = []
+    if total > 0:
+        items.append({
+            "id": f"{hero_id_prefix}-total",
+            "name": f"{p_label} · {m_label}: {fmt_tokens(total, language)} tokens",
+            "used": today_m, "limit": max(peak_m, 0.01),
+            "displayStyle": "ratio",
+            "resetAt": None,
+            "status": status, "color": color,
+            "trailingText": fmt_tokens(today_total, language),
+        })
+
+    chart = _build_chart(by_bucket, model_totals, chart_meta, period, unit, language)
+    return {"label": p_label, "bucketUnit": unit, "items": items, "chart": chart}
+
+
+def build_overview_dimension(*, claude_dir: str, gemini_dir: str, codex_dir: str,
+                              period: str, mode: str, language: str
+                              ) -> dict[str, Any]:
+    """daily-overview 的 dimension：三家并行 + 当日 hero + per-model 行 + chart。"""
+    from concurrent.futures import ThreadPoolExecutor
+
+    chart_meta, unit = period_chart_buckets(period, today=datetime.now().astimezone().date())
+    today_id = chart_meta[-1]["id"] if chart_meta else None
+    by_bucket: dict[str, dict[str, int]] = {b["id"]: {} for b in chart_meta}
+    by_model_today: dict[str, int] = {}
+
+    def _run(scan_fn, data_dir):
+        return scan_fn(data_dir, period, mode=mode)
+
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        futures = {
+            "claude": ex.submit(_run, scan_claude, claude_dir),
+            "gemini": ex.submit(_run, scan_gemini, gemini_dir),
+            "codex":  ex.submit(_run, scan_codex,  codex_dir),
+        }
+        for prov, fut in futures.items():
+            try:
+                sub_by_bucket, _totals, _meta, _unit = fut.result()
+            except Exception as exc:
+                print(f"[daily-overview] scan_{prov} failed: {exc}", file=sys.stderr)
+                continue
+            merge_bucket_maps(by_bucket, sub_by_bucket)
+            if today_id:
+                for m, t in sub_by_bucket.get(today_id, {}).items():
+                    by_model_today[m] = by_model_today.get(m, 0) + int(t)
+
+    today_total = sum(by_model_today.values())
+    sorted_models = sorted(by_model_today.items(), key=lambda kv: -kv[1])
+
+    items: list[dict[str, Any]] = []
+    if today_total > 0:
+        total_m = round(today_total / 1_000_000, 2)
+        hero_key = ("this_week_total" if unit == "week" else
+                    "this_month_total" if unit == "month" else
+                    "today_total")
+        items.append({
+            "id": "overview-today-total",
+            "name": f"{tr(language, hero_key)}  ▸  {fmt_tokens(today_total, language)} tokens",
+            "used": total_m, "limit": max(total_m, 0.01),
+            "displayStyle": "ratio",
+            "resetAt": None,
+            "status": "normal", "color": "blue",
+            "trailingText": fmt_tokens(today_total, language),
+        })
+        for i, (model, tokens) in enumerate(sorted_models):
+            tokens_m = round(tokens / 1_000_000, 2)
+            share = tokens / today_total if today_total else 0
+            color = "red" if share >= 0.5 else "orange" if share >= 0.25 else "blue"
+            items.append({
+                "id": f"overview-{i}-{model}",
+                "name": f"{model}  ({fmt_tokens(tokens, language)})",
+                "used": tokens_m, "limit": max(total_m, 0.01),
+                "displayStyle": "percent",
+                "resetAt": None,
+                "status": "normal", "color": color,
+                "trailingText": fmt_tokens(tokens, language),
+            })
+
+    # daily-overview chart 用全 model_totals 排序
+    aggregated_totals: dict[str, int] = {}
+    for models in by_bucket.values():
+        for m, t in models.items():
+            aggregated_totals[m] = aggregated_totals.get(m, 0) + int(t)
+    chart = _build_chart(by_bucket, aggregated_totals, chart_meta, period, unit, language)
+    if not any(b["segments"] for b in chart["buckets"]):
+        chart["message"] = tr(language, "no_data_today")
+    return {"label": period_label(period, language), "bucketUnit": unit,
+            "items": items, "chart": chart}

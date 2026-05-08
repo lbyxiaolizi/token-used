@@ -39,15 +39,17 @@
 #     },
 #     {
 #       "name": "CHART_PERIOD",
-#       "label": "图表周期",
-#       "label@zh-Hans": "图表周期",
-#       "label@en": "Chart Period",
+#       "label": "默认图表周期",
+#       "label@zh-Hans": "默认图表周期",
+#       "label@en": "Default Chart Period",
 #       "type": "choice",
 #       "required": false,
-#       "defaultValue": "7d",
+#       "defaultValue": "30d",
 #       "options": [
 #         {"label": "7 天", "label@zh-Hans": "7 天", "label@en": "7 days", "value": "7d"},
-#         {"label": "30 天", "label@zh-Hans": "30 天", "label@en": "30 days", "value": "30d"}
+#         {"label": "30 天", "label@zh-Hans": "30 天", "label@en": "30 days", "value": "30d"},
+#         {"label": "90 天", "label@zh-Hans": "90 天", "label@en": "90 days", "value": "90d"},
+#         {"label": "全部 (12 月)", "label@zh-Hans": "全部 (12 月)", "label@en": "All (12 mo)", "value": "all"}
 #       ]
 #     },
 #     {
@@ -71,7 +73,6 @@ from __future__ import annotations
 
 import json
 import sys
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 _PLUGIN_DIR = Path(__file__).resolve().parent
@@ -79,19 +80,14 @@ if str(_PLUGIN_DIR) not in sys.path:
     sys.path.insert(0, str(_PLUGIN_DIR))
 
 from _shared import (  # noqa: E402
+    PERIODS,
     SCHEMA_VERSION,
-    bucket_id,
-    bucket_label,
+    build_overview_dimension,
     fmt_tokens,
     lang,
-    merge_bucket_maps,
+    normalize_period,
     normalize_token_mode,
     parse_params,
-    scan_claude,
-    scan_codex,
-    scan_gemini,
-    stat_range,
-    tr,
     utc_now_iso,
 )
 
@@ -102,94 +98,36 @@ def main() -> int:
     claude_dir = p.get("CLAUDE_DIR") or "~/.claude/projects"
     gemini_dir = p.get("GEMINI_DIR") or "~/.gemini/tmp"
     codex_dir = p.get("CODEX_DIR") or "~/.codex"
-    period = (p.get("CHART_PERIOD") or "7d").lower()
-    if period not in ("7d", "30d"):
-        period = "7d"
+    default_period = normalize_period(p.get("CHART_PERIOD"))
     mode = normalize_token_mode(p.get("TOKEN_MODE"))
 
-    _, _, buckets = stat_range(period)
-    bucket_set = {bucket_id(b) for b in buckets}
-    today_id = bucket_id(buckets[-1])
+    dims: dict[str, dict] = {}
+    for period in PERIODS:
+        try:
+            dims[period] = build_overview_dimension(
+                claude_dir=claude_dir, gemini_dir=gemini_dir, codex_dir=codex_dir,
+                period=period, mode=mode, language=language,
+            )
+        except Exception as exc:
+            print(f"[daily-overview] dim {period} failed: {exc}", file=sys.stderr)
+            dims[period] = {"label": period, "bucketUnit": "day", "items": [], "chart": {}}
 
-    by_bucket: dict[str, dict[str, int]] = {b: {} for b in bucket_set}
-    by_model_today: dict[str, int] = {}
+    if default_period not in dims:
+        default_period = next(iter(dims))
+    default_dim = dims[default_period]
 
-    # 三家 IO bound 并行，每个 worker 返回独立结果再合并（无共享写）
-    def _run(scan_fn, data_dir):
-        return scan_fn(data_dir, buckets, mode=mode)
-
-    with ThreadPoolExecutor(max_workers=3) as ex:
-        futures = {
-            "claude": ex.submit(_run, scan_claude, claude_dir),
-            "gemini": ex.submit(_run, scan_gemini, gemini_dir),
-            "codex":  ex.submit(_run, scan_codex,  codex_dir),
-        }
-        for prov, fut in futures.items():
-            try:
-                sub_by_bucket, _model_totals = fut.result()
-            except Exception as exc:
-                print(f"[daily-overview] scan_{prov} failed: {exc}", file=sys.stderr)
-                continue
-            merge_bucket_maps(by_bucket, sub_by_bucket)
-            for m, t in sub_by_bucket.get(today_id, {}).items():
-                by_model_today[m] = by_model_today.get(m, 0) + int(t)
-
-    today_total = sum(by_model_today.values())
-    sorted_models = sorted(by_model_today.items(), key=lambda kv: -kv[1])
-
-    items = []
-    if today_total > 0:
-        total_m = round(today_total / 1_000_000, 2)
-        items.append({
-            "id": "overview-today-total",
-            "name": f"{tr(language, 'today_total')}  ▸  {fmt_tokens(today_total, language)} tokens",
-            "used": total_m,
-            "limit": max(total_m, 0.01),
-            "displayStyle": "ratio",
-            "resetAt": None,
-            "status": "normal",
-            "color": "blue",
-            "trailingText": fmt_tokens(today_total, language),
-        })
-        for i, (model, tokens) in enumerate(sorted_models):
-            tokens_m = round(tokens / 1_000_000, 2)
-            share = tokens / today_total if today_total else 0
-            color = "red" if share >= 0.5 else "orange" if share >= 0.25 else "blue"
-            items.append({
-                "id": f"overview-{i}-{model}",
-                "name": f"{model}  ({fmt_tokens(tokens, language)})",
-                "used": tokens_m,
-                "limit": max(total_m, 0.01),
-                "displayStyle": "percent",
-                "resetAt": None,
-                "status": "normal",
-                "color": color,
-                "trailingText": fmt_tokens(tokens, language),
-            })
-
-    sorted_all_models = sorted(
-        {m for v in by_bucket.values() for m in v},
-        key=lambda m: -sum(v.get(m, 0) for v in by_bucket.values()),
-    )
-    chart_buckets = []
-    for b in buckets:
-        b_id = bucket_id(b)
-        segs = [
-            {"model": m, "tokens": int(by_bucket.get(b_id, {}).get(m, 0))}
-            for m in sorted_all_models if by_bucket.get(b_id, {}).get(m, 0) > 0
-        ]
-        chart_buckets.append({"id": b_id, "label": bucket_label(b), "segments": segs})
-    msg = None if any(b["segments"] for b in chart_buckets) else tr(language, "no_data_today")
-    chart = {"kind": "line", "period": period, "bucketUnit": "day",
-             "buckets": chart_buckets, "message": msg}
-
-    badge = fmt_tokens(today_total, language) if today_total > 0 else None
+    # badge：今日合计（与 period 无关，取 7d dimension 当日数据；fallback 到 default）
+    today_items = (dims.get("7d") or default_dim).get("items") or []
+    badge = today_items[0].get("trailingText") if today_items else None
 
     out = {
         "schemaVersion": SCHEMA_VERSION,
         "updatedAt": utc_now_iso(),
-        "items": items,
-        "chart": chart,
+        "items": default_dim.get("items", []),
+        "chart": default_dim.get("chart", {}),
+        "defaultDimension": default_period,
+        "dimensionOrder": list(PERIODS),
+        "dimensions": dims,
     }
     if badge:
         out["badge"] = badge
