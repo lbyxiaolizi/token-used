@@ -1,6 +1,6 @@
 import Foundation
 
-struct DailyOverview: Codable {
+struct DailyOverview: Decodable {
     let updatedAt: Date?
     let badge: String?
     let items: [Item]
@@ -17,18 +17,10 @@ struct DailyOverview: Codable {
         self.items = try c.decodeIfPresent([Item].self, forKey: .items) ?? []
         self.chart = try c.decodeIfPresent(Chart.self, forKey: .chart) ?? Chart.empty
     }
-
-    func encode(to encoder: Encoder) throws {
-        var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encodeIfPresent(updatedAt, forKey: .updatedAt)
-        try c.encodeIfPresent(badge, forKey: .badge)
-        try c.encode(items, forKey: .items)
-        try c.encode(chart, forKey: .chart)
-    }
 }
 
 extension DailyOverview {
-    struct Item: Codable, Identifiable {
+    struct Item: Decodable, Identifiable {
         let id: String
         let name: String
         let used: Double
@@ -54,15 +46,15 @@ extension DailyOverview {
         }
     }
 
-    enum ColorTag: String, Codable {
+    enum ColorTag: String, Decodable {
         case red, orange, blue, green, gray
     }
 
-    enum DisplayStyle: String, Codable {
+    enum DisplayStyle: String, Decodable {
         case ratio, percent
     }
 
-    struct Chart: Codable {
+    struct Chart: Decodable {
         let kind: String
         let period: String
         let bucketUnit: String
@@ -70,13 +62,13 @@ extension DailyOverview {
 
         static let empty = Chart(kind: "line", period: "7d", bucketUnit: "day", buckets: [])
 
-        struct Bucket: Codable, Identifiable {
+        struct Bucket: Decodable, Identifiable {
             let id: String
             let label: String
             let segments: [Segment]
         }
 
-        struct Segment: Codable {
+        struct Segment: Decodable {
             let model: String
             let tokens: Double
         }

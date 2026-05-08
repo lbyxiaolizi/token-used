@@ -2,11 +2,15 @@ import XCTest
 
 final class DailyOverviewTests: XCTestCase {
 
-    private func loadFixture(_ name: String) throws -> Data {
+    private func loadFixture(_ name: String, file: StaticString = #filePath, line: UInt = #line) throws -> Data {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .appendingPathComponent("Fixtures")
             .appendingPathComponent("\(name).json")
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            XCTFail("fixture 不存在：\(url.path)（如在 CI 上跑请确认源码 checkout 路径与 #filePath 展开一致）", file: file, line: line)
+            throw NSError(domain: "fixture", code: 0)
+        }
         return try Data(contentsOf: url)
     }
 
@@ -55,7 +59,9 @@ final class DailyOverviewTests: XCTestCase {
     func test_isHero() throws {
         let data = try loadFixture("daily-overview-full")
         let model = try decoder.decode(DailyOverview.self, from: data)
-        XCTAssertTrue(model.items.first!.isHero)
-        XCTAssertFalse(model.items.last!.isHero)
+        let hero = try XCTUnwrap(model.items.first)
+        let nonHero = try XCTUnwrap(model.items.last)
+        XCTAssertTrue(hero.isHero)
+        XCTAssertFalse(nonHero.isHero)
     }
 }
