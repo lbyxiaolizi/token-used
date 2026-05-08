@@ -23,10 +23,18 @@ SCHEMA_VERSION = 1
 CACHE_VERSION = 1
 
 PARSER_VERSIONS = {
-    "claude": "v1",
-    "gemini": "v1",
-    "codex": "v1",
+    "claude": "v2",  # v2: byBucket value 改为 {"raw": N, "billable": N}
+    "gemini": "v2",
+    "codex": "v2",
 }
+
+TOKEN_MODES = ("billable", "raw")
+DEFAULT_TOKEN_MODE = "billable"
+
+
+def normalize_token_mode(value: str | None) -> str:
+    v = (value or "").strip().lower()
+    return v if v in TOKEN_MODES else DEFAULT_TOKEN_MODE
 
 CACHE_PRUNE_DAYS = 45  # cache 中超过该天数无活动的文件 entry 会被清理
 
@@ -38,6 +46,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "period_30d": {"en": "30d", "zh-Hans": "30 天"},
     "today_total": {"en": "Today total", "zh-Hans": "今日合计"},
     "total_tokens_for_period": {"en": "{period} total", "zh-Hans": "{period} 总用量"},
+    "mode_billable": {"en": "billable", "zh-Hans": "计费"},
+    "mode_raw": {"en": "raw", "zh-Hans": "原始"},
 }
 
 
@@ -283,18 +293,21 @@ def aggregate_with_cache(
     provider: str,
     data_dir: str,
     files: Iterable[str],
-    parse_file: Callable[[str], dict[str, dict[str, int]]],
+    parse_file: Callable[[str], dict[str, dict[str, dict[str, int]]]],
     parser_version: str,
     bucket_set: set[str],
+    mode: str = DEFAULT_TOKEN_MODE,
     cache_root: Path | None = None,
 ) -> tuple[dict[str, dict[str, int]], dict[str, int]]:
-    """File-level cache 编排。
+    """File-level cache 编排（v2 schema：双值 raw/billable 并存）。
 
-    parse_file(path) 必须是纯函数，返回 {bucket_id: {model: tokens}}（覆盖该文件**所有**桶，
-    不要预先按窗口过滤——cache 服务于 7d/30d 双窗口）。
+    parse_file(path) 必须是纯函数，返回 {bucket_id: {model: {"raw": N, "billable": N}}}，
+    覆盖该文件**所有**桶（不要预过滤窗口——cache 服务于 7d/30d 双窗口）。
+    切换 `mode` 时不会触发 reparse，aggregate 阶段按 mode 投影到 int。
 
-    返回 (by_bucket, model_totals) 已按 bucket_set 过滤。
+    返回 (by_bucket, model_totals) 已按 bucket_set 过滤、按 mode 投影。
     """
+    mode = normalize_token_mode(mode)
     expanded_dir = os.path.realpath(os.path.expanduser(data_dir))
     tz_offset = current_tz_offset_seconds()
     cache_path = cache_file_path(provider, expanded_dir, root=cache_root)
@@ -323,14 +336,34 @@ def aggregate_with_cache(
                 cache = _empty_cache(provider, expanded_dir, parser_version, tz_offset)
 
             # 严格校验 files 字段类型；不合规则整份当首次（仅丢 files，保留头部元数据）
+            # v2 schema 要求 byBucket 的 model 值是 dict（{raw, billable}）而非 int
             raw_files = cache.get("files")
             cached_files: dict[str, dict[str, Any]] = {}
             if isinstance(raw_files, dict):
                 for k, v in raw_files.items():
-                    if (isinstance(k, str)
+                    if not (isinstance(k, str)
                             and isinstance(v, dict)
                             and isinstance(v.get("fingerprint"), dict)
                             and isinstance(v.get("byBucket"), dict)):
+                        continue
+                    # 检查 byBucket → model → {raw, billable} 结构
+                    # bucket key 必须 str（prune 会做 b >= cutoff_str 比较）
+                    # model key 必须 str（流入 JSON 输出）
+                    # raw/billable 必须 int（不接受 bool / float 含 NaN/Inf 风险）
+                    ok = True
+                    for _b, models in v["byBucket"].items():
+                        if not (isinstance(_b, str) and isinstance(models, dict)):
+                            ok = False; break
+                        for _m, vals in models.items():
+                            if not (isinstance(_m, str) and isinstance(vals, dict)):
+                                ok = False; break
+                            r = vals.get("raw"); b_ = vals.get("billable")
+                            if not (isinstance(r, int) and not isinstance(r, bool)
+                                    and isinstance(b_, int) and not isinstance(b_, bool)
+                                    and r >= 0 and b_ >= 0):
+                                ok = False; break
+                        if not ok: break
+                    if ok:
                         cached_files[k] = v
             # 起始 = 旧 cache（保留 file_list 之外但仍在窗口内的 entry，避免 7d/30d 互踢）
             new_files = dict(cached_files)
@@ -379,39 +412,61 @@ def aggregate_with_cache(
             cache["updatedAt"] = utc_now_iso()
             save_cache_atomic(cache_path, cache)
 
-    # Aggregate within window
+    # Aggregate within window，按 mode 投影 {raw, billable} → int
     by_bucket: dict[str, dict[str, int]] = {}
     model_totals: dict[str, int] = {}
     for entry in new_files.values():
         by = entry.get("byBucket") or {}
         for b, models in by.items():
-            if b not in bucket_set:
+            if not (isinstance(b, str) and b in bucket_set and isinstance(models, dict)):
                 continue
             bag = by_bucket.setdefault(b, {})
-            for m, t in models.items():
-                ti = int(t)
-                bag[m] = bag.get(m, 0) + ti
-                model_totals[m] = model_totals.get(m, 0) + ti
+            for m, vals in models.items():
+                if not (isinstance(m, str) and isinstance(vals, dict)):
+                    continue
+                v = vals.get(mode)
+                if not (isinstance(v, int) and not isinstance(v, bool) and v > 0):
+                    continue
+                bag[m] = bag.get(m, 0) + v
+                model_totals[m] = model_totals.get(m, 0) + v
     return by_bucket, model_totals
 
 
 # ─────────────────────────── provider file parsers ───────────────────────────
 
-_USAGE_KEYS_CLAUDE = (
+_CLAUDE_KEYS_RAW = (
     "input_tokens",
     "output_tokens",
     "cache_creation_input_tokens",
     "cache_read_input_tokens",
 )
+_CLAUDE_KEYS_BILLABLE = (
+    "input_tokens",
+    "output_tokens",
+    "cache_creation_input_tokens",
+)
 
 
-def parse_claude_file(fp: str) -> dict[str, dict[str, int]]:
+def _bump(bag: dict[str, dict[str, int]], model: str, raw: int, billable: int) -> None:
+    """Add (raw, billable) into bag[model]. bag value is {"raw": int, "billable": int}."""
+    cur = bag.get(model)
+    if cur is None:
+        bag[model] = {"raw": int(raw), "billable": int(billable)}
+    else:
+        cur["raw"] = int(cur.get("raw", 0)) + int(raw)
+        cur["billable"] = int(cur.get("billable", 0)) + int(billable)
+
+
+def parse_claude_file(fp: str) -> dict[str, dict[str, dict[str, int]]]:
     """Parse a Claude Code session JSONL.
 
-    返回 {bucket_id: {model: tokens}}，覆盖该文件的所有桶。
+    返回 {bucket_id: {model: {"raw": N, "billable": N}}}：
+    - raw      = input + output + cache_creation + cache_read（含 cache 命中）
+    - billable = input + output + cache_creation（与 Claude Code /cost 口径一致）
+
     字符串预筛只检查 `"usage"`，不依赖 JSON 字段顺序。
     """
-    out: dict[str, dict[str, int]] = {}
+    out: dict[str, dict[str, dict[str, int]]] = {}
     try:
         with open(fp, encoding="utf-8", errors="replace") as fh:
             for line in fh:
@@ -429,27 +484,32 @@ def parse_claude_file(fp: str) -> dict[str, dict[str, int]]:
                 usage = msg.get("usage")
                 if not isinstance(usage, dict):
                     continue
-                tokens = 0
-                for k in _USAGE_KEYS_CLAUDE:
+                raw = 0
+                billable = 0
+                for k in _CLAUDE_KEYS_RAW:
                     v = usage.get(k)
                     if isinstance(v, (int, float)):
-                        tokens += int(v)
-                if tokens <= 0:
+                        raw += int(v)
+                for k in _CLAUDE_KEYS_BILLABLE:
+                    v = usage.get(k)
+                    if isinstance(v, (int, float)):
+                        billable += int(v)
+                if raw <= 0 and billable <= 0:
                     continue
                 dt = parse_iso(ev.get("timestamp"))
                 if not dt:
                     continue
                 b = bucket_id(dt)
                 model = msg.get("model") or "claude-unknown"
-                bag = out.setdefault(b, {})
-                bag[model] = bag.get(model, 0) + tokens
+                _bump(out.setdefault(b, {}), model, raw, billable)
     except (OSError, UnicodeDecodeError):
         return out
     return out
 
 
-def parse_gemini_file(fp: str) -> dict[str, dict[str, int]]:
-    out: dict[str, dict[str, int]] = {}
+def parse_gemini_file(fp: str) -> dict[str, dict[str, dict[str, int]]]:
+    """Gemini 没有 cache_read 概念，raw 与 billable 数值相等。"""
+    out: dict[str, dict[str, dict[str, int]]] = {}
     try:
         with open(fp, encoding="utf-8", errors="replace") as fh:
             doc = json.load(fh)
@@ -479,18 +539,13 @@ def parse_gemini_file(fp: str) -> dict[str, dict[str, int]]:
         if not dt:
             continue
         b = bucket_id(dt)
-        bag = out.setdefault(b, {})
-        bag[model] = bag.get(model, 0) + total
+        _bump(out.setdefault(b, {}), model, raw=total, billable=total)
     return out
 
 
-def parse_codex_file(fp: str) -> dict[str, dict[str, int]]:
-    """Parse one Codex session JSONL.
-
-    Codex 用 `total_token_usage.total_tokens` 是整段累计，必须按"整文件"取 delta，
-    所以 parse_file 一次性读完全文件，返回 {bucket_id: {model: tokens}}。
-    """
-    out: dict[str, dict[str, int]] = {}
+def parse_codex_file(fp: str) -> dict[str, dict[str, dict[str, int]]]:
+    """Codex 没有 cache_read 概念，raw 与 billable 数值相等（取 total_tokens delta）。"""
+    out: dict[str, dict[str, dict[str, int]]] = {}
     current_model: str | None = None
     prev_total = 0.0
     first = True
@@ -533,8 +588,8 @@ def parse_codex_file(fp: str) -> dict[str, dict[str, int]]:
                     if not dt:
                         continue
                     b = bucket_id(dt)
-                    bag = out.setdefault(b, {})
-                    bag[model] = bag.get(model, 0) + int(delta)
+                    di = int(delta)
+                    _bump(out.setdefault(b, {}), model, raw=di, billable=di)
     except (OSError, UnicodeDecodeError):
         return out
     return out
@@ -587,7 +642,8 @@ def list_codex_files(data_dir: str, start_date: date) -> list[str]:
 
 # ─────────────────────────── high-level provider scan ────────────────────────
 
-def scan_claude(data_dir: str, buckets: list[datetime], *, cache_root: Path | None = None
+def scan_claude(data_dir: str, buckets: list[datetime], *,
+                mode: str = DEFAULT_TOKEN_MODE, cache_root: Path | None = None
                 ) -> tuple[dict[str, dict[str, int]], dict[str, int]]:
     cutoff = mtime_cutoff(buckets[0])
     files = list_claude_files(data_dir, cutoff)
@@ -598,11 +654,13 @@ def scan_claude(data_dir: str, buckets: list[datetime], *, cache_root: Path | No
         parse_file=parse_claude_file,
         parser_version=PARSER_VERSIONS["claude"],
         bucket_set={bucket_id(b) for b in buckets},
+        mode=mode,
         cache_root=cache_root,
     )
 
 
-def scan_gemini(data_dir: str, buckets: list[datetime], *, cache_root: Path | None = None
+def scan_gemini(data_dir: str, buckets: list[datetime], *,
+                mode: str = DEFAULT_TOKEN_MODE, cache_root: Path | None = None
                 ) -> tuple[dict[str, dict[str, int]], dict[str, int]]:
     cutoff = mtime_cutoff(buckets[0])
     files = list_gemini_files(data_dir, cutoff)
@@ -613,11 +671,13 @@ def scan_gemini(data_dir: str, buckets: list[datetime], *, cache_root: Path | No
         parse_file=parse_gemini_file,
         parser_version=PARSER_VERSIONS["gemini"],
         bucket_set={bucket_id(b) for b in buckets},
+        mode=mode,
         cache_root=cache_root,
     )
 
 
-def scan_codex(data_dir: str, buckets: list[datetime], *, cache_root: Path | None = None
+def scan_codex(data_dir: str, buckets: list[datetime], *,
+               mode: str = DEFAULT_TOKEN_MODE, cache_root: Path | None = None
                ) -> tuple[dict[str, dict[str, int]], dict[str, int]]:
     files = list_codex_files(data_dir, buckets[0].date())
     return aggregate_with_cache(
@@ -627,5 +687,6 @@ def scan_codex(data_dir: str, buckets: list[datetime], *, cache_root: Path | Non
         parse_file=parse_codex_file,
         parser_version=PARSER_VERSIONS["codex"],
         bucket_set={bucket_id(b) for b in buckets},
+        mode=mode,
         cache_root=cache_root,
     )

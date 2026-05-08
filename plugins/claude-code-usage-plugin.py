@@ -32,6 +32,19 @@
 #         {"label": "7 天", "label@zh-Hans": "7 天", "label@en": "7 days", "value": "7d"},
 #         {"label": "30 天", "label@zh-Hans": "30 天", "label@en": "30 days", "value": "30d"}
 #       ]
+#     },
+#     {
+#       "name": "TOKEN_MODE",
+#       "label": "Token 计算口径",
+#       "label@zh-Hans": "Token 计算口径",
+#       "label@en": "Token Counting Mode",
+#       "type": "choice",
+#       "required": false,
+#       "defaultValue": "billable",
+#       "options": [
+#         {"label": "计费等价（input+output+cache_creation）", "label@zh-Hans": "计费等价（input+output+cache_creation）", "label@en": "Billable (input+output+cache_creation)", "value": "billable"},
+#         {"label": "原始（含 cache_read 命中）", "label@zh-Hans": "原始（含 cache_read 命中）", "label@en": "Raw (incl. cache_read hits)", "value": "raw"}
+#       ]
 #     }
 #   ]
 # }
@@ -53,6 +66,7 @@ from _shared import (  # noqa: E402
     bucket_label,
     fmt_tokens,
     lang,
+    normalize_token_mode,
     parse_params,
     scan_claude,
     stat_range,
@@ -69,10 +83,12 @@ def main() -> int:
     if period not in ("7d", "30d"):
         period = "7d"
     period_label = tr(language, "period_7d" if period == "7d" else "period_30d")
+    mode = normalize_token_mode(p.get("TOKEN_MODE"))
+    mode_label = tr(language, "mode_billable" if mode == "billable" else "mode_raw")
 
     try:
         _, _, buckets = stat_range(period)
-        by_bucket, model_totals = scan_claude(data_dir, buckets)
+        by_bucket, model_totals = scan_claude(data_dir, buckets, mode=mode)
     except Exception as exc:
         print(f"[claude-code-usage-plugin] scan failed: {exc}", file=sys.stderr)
         print(json.dumps({
@@ -101,7 +117,7 @@ def main() -> int:
     if total > 0:
         items.append({
             "id": "claude-total",
-            "name": f"{period_label}: {fmt_tokens(total, language)} tokens",
+            "name": f"{period_label} · {mode_label}: {fmt_tokens(total, language)} tokens",
             "used": today_m,
             "limit": max(peak_m, 0.01),
             "displayStyle": "ratio",

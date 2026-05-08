@@ -49,6 +49,19 @@
 #         {"label": "7 天", "label@zh-Hans": "7 天", "label@en": "7 days", "value": "7d"},
 #         {"label": "30 天", "label@zh-Hans": "30 天", "label@en": "30 days", "value": "30d"}
 #       ]
+#     },
+#     {
+#       "name": "TOKEN_MODE",
+#       "label": "Token 计算口径（仅对 Claude 生效）",
+#       "label@zh-Hans": "Token 计算口径（仅对 Claude 生效）",
+#       "label@en": "Token Counting Mode (Claude only)",
+#       "type": "choice",
+#       "required": false,
+#       "defaultValue": "billable",
+#       "options": [
+#         {"label": "计费等价（input+output+cache_creation）", "label@zh-Hans": "计费等价（input+output+cache_creation）", "label@en": "Billable (input+output+cache_creation)", "value": "billable"},
+#         {"label": "原始（含 cache_read 命中）", "label@zh-Hans": "原始（含 cache_read 命中）", "label@en": "Raw (incl. cache_read hits)", "value": "raw"}
+#       ]
 #     }
 #   ]
 # }
@@ -72,6 +85,7 @@ from _shared import (  # noqa: E402
     fmt_tokens,
     lang,
     merge_bucket_maps,
+    normalize_token_mode,
     parse_params,
     scan_claude,
     scan_codex,
@@ -91,6 +105,7 @@ def main() -> int:
     period = (p.get("CHART_PERIOD") or "7d").lower()
     if period not in ("7d", "30d"):
         period = "7d"
+    mode = normalize_token_mode(p.get("TOKEN_MODE"))
 
     _, _, buckets = stat_range(period)
     bucket_set = {bucket_id(b) for b in buckets}
@@ -101,7 +116,7 @@ def main() -> int:
 
     # 三家 IO bound 并行，每个 worker 返回独立结果再合并（无共享写）
     def _run(scan_fn, data_dir):
-        return scan_fn(data_dir, buckets)
+        return scan_fn(data_dir, buckets, mode=mode)
 
     with ThreadPoolExecutor(max_workers=3) as ex:
         futures = {
