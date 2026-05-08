@@ -41,7 +41,8 @@ chmod +x "$HOME/Library/Application Support/UsageBoard/plugins/"*.py
 
 ```bash
 cp "$HOME/Library/Application Support/UsageBoard/config.json" "$HOME/Library/Application Support/UsageBoard/config.json.bak"
-cp examples/config.example.json "$HOME/Library/Application Support/UsageBoard/config.json"
+# 样例 config 里 plugin 的 executablePath 用了占位符 __HOME__，先用 sed 替换为当前用户的 $HOME 再写出
+sed "s|__HOME__|$HOME|g" examples/config.example.json > "$HOME/Library/Application Support/UsageBoard/config.json"
 ```
 
 然后重启 UsageBoard：

@@ -5,7 +5,7 @@
   "plugins" : [
     {
       "enabled" : true,
-      "executablePath" : "\/Users\/beamstark\/Library\/Application Support\/UsageBoard\/plugins\/daily-overview-plugin.py",
+      "executablePath" : "\/__HOME__\/Library\/Application Support\/UsageBoard\/plugins\/daily-overview-plugin.py",
       "metadata" : {
         "description" : "聚合 Claude \/ Gemini \/ Codex 当天所有模型的 token 用量",
         "description@en" : "Aggregate today's token usage across Claude \/ Gemini \/ Codex by model",
@@ -88,7 +88,7 @@
     },
     {
       "enabled" : true,
-      "executablePath" : "\/Users\/beamstark\/Library\/Application Support\/UsageBoard\/plugins\/claude-code-usage-plugin.py",
+      "executablePath" : "\/__HOME__\/Library\/Application Support\/UsageBoard\/plugins\/claude-code-usage-plugin.py",
       "metadata" : {
         "description" : "查询 Claude Code 本地会话的 token 用量统计",
         "description@en" : "Aggregate Claude Code local session token usage",
@@ -146,7 +146,7 @@
     },
     {
       "enabled" : true,
-      "executablePath" : "\/Users\/beamstark\/Library\/Application Support\/UsageBoard\/plugins\/gemini-cli-usage-plugin.py",
+      "executablePath" : "\/__HOME__\/Library\/Application Support\/UsageBoard\/plugins\/gemini-cli-usage-plugin.py",
       "metadata" : {
         "description" : "查询 Gemini CLI 本地会话的 token 用量统计",
         "description@en" : "Aggregate Gemini CLI local session token usage",
@@ -204,7 +204,7 @@
     },
     {
       "enabled" : true,
-      "executablePath" : "\/Users\/beamstark\/Library\/Application Support\/UsageBoard\/plugins\/codex-local-usage-plugin.py",
+      "executablePath" : "\/__HOME__\/Library\/Application Support\/UsageBoard\/plugins\/codex-local-usage-plugin.py",
       "metadata" : {
         "description" : "查询 Codex CLI 本地会话的 token 用量统计（不依赖 ChatGPT 订阅）",
         "description@en" : "Aggregate Codex CLI local session token usage (no ChatGPT subscription needed)",

@@ -1,69 +1,196 @@
 # TokenUsed
 
-为 [UsageBoard](https://github.com/marsmay/UsageBoard) 打造的一组本地 token 用量插件，把 **Claude Code / Gemini CLI / Codex CLI** 三家命令行工具的本地会话数据聚合到 macOS 菜单栏。
+> **Local-only token usage plugins for [UsageBoard](https://github.com/marsmay/UsageBoard)**, aggregating Claude Code / Gemini CLI / Codex CLI sessions into one macOS menu-bar dashboard.
 
-不依赖任何远程配额 API（不需要 ChatGPT 订阅 token），完全离线读取本地 JSONL/JSON 会话文件统计 token 用量。
+[简体中文](./README_ZH.md) · English
 
-## 仓库内容
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE) ![Platform](https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey)
+
+---
+
+## Features
+
+- **Zero remote API calls** — everything is read from local JSONL/JSON session files; no ChatGPT subscription or quota API needed.
+- **Three CLIs in one panel** — Claude Code, Gemini CLI, Codex CLI usage aggregated by model.
+- **Today overview + 7/30 day chart** — a hero card shows today's total across all CLIs, plus a stacked bar chart by model.
+- **Auto-hide empty panels** — if you've never used a CLI (e.g. Gemini), its panel disappears automatically.
+- **Right-column token count** — UsageBoard's reset-time slot is repurposed via the `trailingText` field to show the per-model token count.
+- **Native macOS WidgetKit project included** — code-complete in `widget/`; gallery distribution requires a paid Apple Developer Program account (see [Native Widget](#native-widget-status)).
+
+---
+
+## Requirements
+
+| Component | Version | Notes |
+|---|---|---|
+| macOS | 13.0 + | UsageBoard requirement |
+| Python 3 | 3.8 + | System Python or Homebrew both fine |
+| [UsageBoard](https://github.com/marsmay/UsageBoard) | upstream `main` | Will be patched and rebuilt locally |
+| Swift toolchain | 6.2 + | Only needed if you build UsageBoard from source |
+| Xcode 16 + | optional | Only needed if you also build the native widget app |
+
+You also need **at least one** of these CLIs to have produced session data:
+
+- Claude Code → `~/.claude/projects/**/*.jsonl`
+- Gemini CLI → `~/.gemini/tmp/**/session-*.json`
+- Codex CLI → `~/.codex/sessions/**/*.jsonl` and `~/.codex/archived_sessions/*.jsonl`
+
+CLIs with zero data hide automatically — install all four plugins anyway and use what you have.
+
+---
+
+## Quick Start
+
+```bash
+# 1. Clone
+git clone https://github.com/uniStark/TokenUsed.git
+cd TokenUsed
+
+# 2. Patch + build UsageBoard (one time)
+git clone https://github.com/marsmay/UsageBoard.git ../UsageBoard
+cd ../UsageBoard
+git apply ../TokenUsed/patches/usageboard-build-and-refresh.patch
+bash scripts/build.sh
+cd ../TokenUsed
+
+# 3. Install plugins
+mkdir -p "$HOME/Library/Application Support/UsageBoard/plugins"
+cp plugins/*.py "$HOME/Library/Application Support/UsageBoard/plugins/"
+chmod +x "$HOME/Library/Application Support/UsageBoard/plugins/"*.py
+
+# 4. (optional) Drop in the example config — substitute __HOME__ with your real $HOME
+sed "s|__HOME__|$HOME|g" examples/config.example.json > "$HOME/Library/Application Support/UsageBoard/config.json"
+
+# 5. Open UsageBoard, click the menu-bar icon — you should see four panels
+```
+
+For step-by-step details (configuration UI, troubleshooting, uninstall), see [docs/INSTALL.md](docs/INSTALL.md).
+
+---
+
+## What the Patch Changes
+
+`patches/usageboard-build-and-refresh.patch` makes three small changes to upstream UsageBoard:
+
+| File | Change | Why |
+|---|---|---|
+| `Package.swift` | `swift-tools-version: 6.3` → `6.2` | Lets Swift 6.2 toolchains build it |
+| `Sources/UsageBoardApp/DashboardView.swift` | Adds `store.refreshAll()` to `.onAppear` + filters out empty panels (`visiblePlugins`) | Refresh on every panel open; auto-hide CLIs with no data |
+| `Sources/UsageBoardCore/Models.swift` | Adds optional `trailingText: String?` field on `UsageItem` | Lets plugins put per-row token counts in the right column |
+
+If you'd rather use UsageBoard unmodified, the plugins still work — you just lose auto-hide and the right-column token count.
+
+---
+
+## Configuration
+
+All four plugins read parameters from the UsageBoard plugin settings UI. Defaults work out of the box. Override only when needed.
+
+### Daily Overview (`daily-overview-plugin.py`)
+
+| Parameter | Default | Description |
+|---|---|---|
+| `CLAUDE_DIR` | `~/.claude/projects` | Where Claude Code stores session JSONL |
+| `GEMINI_DIR` | `~/.gemini/tmp` | Where Gemini CLI stores `session-*.json` |
+| `CODEX_DIR` | `~/.codex` | Codex CLI base dir (scans `sessions/` + `archived_sessions/`) |
+| `CHART_PERIOD` | `7d` | `7d` or `30d` — chart window length |
+
+### Per-CLI plugins (`claude-code-usage-plugin.py`, `gemini-cli-usage-plugin.py`, `codex-local-usage-plugin.py`)
+
+| Parameter | Default | Description |
+|---|---|---|
+| `*_DIR` | same as above | Override scan path for that CLI |
+| `STAT_PERIOD` | `7d` | `7d` or `30d` — both for the chart and the "today vs peak day" progress bar |
+
+To customise: open UsageBoard → menu-bar icon → gear → **Plugins** → click the plugin → adjust parameters. No restart needed.
+
+### Progress-bar colour semantics
+
+The four plugins use **different** colour rules on purpose — see [docs/COLORS.md](docs/COLORS.md). TL;DR:
+- Daily overview → red/orange/blue based on each model's share of today's total
+- Per-CLI → red/orange/blue based on today's tokens vs the peak day in the period
+
+---
+
+## Project Layout
 
 ```
 TokenUsed/
-├── plugins/                                # UsageBoard Python 插件
-│   ├── daily-overview-plugin.py            # ⭐ 今日总览（跨三家聚合，按模型分条 + 7 天柱状图）
-│   ├── claude-code-usage-plugin.py         # Claude Code 单独面板
-│   ├── gemini-cli-usage-plugin.py          # Gemini CLI 单独面板
-│   └── codex-local-usage-plugin.py         # Codex CLI 单独面板（OPENAI_API_KEY 模式）
+├── plugins/                            # UsageBoard Python plugins
+│   ├── daily-overview-plugin.py        # ⭐ Today overview (3 CLIs aggregated, per-model rows + 7-day bar chart)
+│   ├── claude-code-usage-plugin.py     # Claude Code single-CLI panel
+│   ├── gemini-cli-usage-plugin.py      # Gemini CLI single-CLI panel
+│   └── codex-local-usage-plugin.py     # Codex CLI single-CLI panel
 ├── patches/
-│   └── usageboard-build-and-refresh.patch  # UsageBoard 上游需要的两处改动
+│   └── usageboard-build-and-refresh.patch  # The three UsageBoard patches
 ├── examples/
-│   └── config.example.json                 # 完整 config.json 样例（4 个插件已注册）
+│   └── config.example.json             # Drop-in UsageBoard config with all four plugins registered
+├── widget/                             # Native macOS WidgetKit app (Xcode project — see status below)
 ├── docs/
-│   ├── INSTALL.md                          # 安装步骤
-│   ├── COLORS.md                           # 进度条配色规则
-│   └── WIDGET.md                           # 桌面小组件方案对比
-└── CONVERSATION.md                         # 完整会话记录（中文）
+│   ├── INSTALL.md                      # Detailed install/uninstall walkthrough
+│   ├── COLORS.md                       # Why each plugin's bar colour rule differs
+│   └── WIDGET.md                       # Desktop widget design notes
+├── README.md                           # This file (English)
+├── README_ZH.md                        # 中文版
+└── LICENSE                             # MIT
 ```
 
-## 数据来源
+---
 
-| 插件 | 读取位置 | 字段 |
-| --- | --- | --- |
+## Native Widget Status
+
+`widget/` contains a complete WidgetKit + SwiftUI Xcode project (Small / Medium / Large sizes, Swift Charts 7-day bar chart). It builds and runs locally, but on **macOS 15+ Sequoia / Tahoe** the system daemon `chronod` refuses to register Personal-Team-signed widget extensions in the desktop widget gallery — **you need a paid [Apple Developer Program](https://developer.apple.com/programs/) ($99/yr) account** to actually use it.
+
+If you don't pay for the Program, stick with the menu-bar UsageBoard panel — it has all the same data. See [docs/WIDGET.md](docs/WIDGET.md) for the full design rationale and three deployment paths (Übersicht / native WidgetKit / fork into UsageBoard).
+
+---
+
+## Data Sources
+
+| Plugin | Reads from | Field |
+|---|---|---|
 | Claude Code | `~/.claude/projects/**/*.jsonl` | `message.usage.{input,output,cache_*}_tokens` + `message.model` |
 | Gemini CLI | `~/.gemini/tmp/**/session-*.json` | `messages[].tokens.total` + `messages[].model` |
-| Codex CLI | `~/.codex/sessions/**/*.jsonl` + `archived_sessions/*.jsonl` | `payload.info.total_token_usage.total_tokens`（按 turn_context 取 model） |
+| Codex CLI | `~/.codex/sessions/**/*.jsonl` + `archived_sessions/*.jsonl` | `payload.info.total_token_usage.total_tokens` (model picked from preceding `turn_context`) |
 
-总览插件并行读取以上三处。
+The overview plugin reads all three in parallel.
 
-## 快速安装
+---
 
-详见 [docs/INSTALL.md](docs/INSTALL.md)。简版：
+## Troubleshooting
 
+**Panel shows "JSON 解析失败 / failed to parse"**: run the plugin manually to see the raw error:
 ```bash
-# 1) 复制插件到 UsageBoard 用户目录
-cp plugins/*.py "$HOME/Library/Application Support/UsageBoard/plugins/"
-
-# 2) 应用 UsageBoard 补丁（仅本地构建版需要）
-cd /path/to/UsageBoard
-git apply /path/to/TokenUsed/patches/usageboard-build-and-refresh.patch
-bash scripts/build.sh   # 重新构建并启动
-
-# 3) 用样例配置（或在设置面板里逐个添加）
-cp examples/config.example.json "$HOME/Library/Application Support/UsageBoard/config.json"
+python3 "$HOME/Library/Application Support/UsageBoard/plugins/daily-overview-plugin.py" \
+  --usageboard-param USAGEBOARD_LANGUAGE=en
 ```
 
-## 设计要点
+**Build error `swift-tools-version 6.3 is not supported`**: you forgot to apply the patch. `cd UsageBoard && git apply ../TokenUsed/patches/usageboard-build-and-refresh.patch`.
 
-- **进度条语义**：纯统计场景没有真实配额，所以不同插件的进度条意义不同——总览 = 模型占今日份额；单 CLI = 今天 vs 期内峰值日。详见 [docs/COLORS.md](docs/COLORS.md)。
-- **打开自动刷新**：补丁里给 `DashboardView.onAppear` 加了 `store.refreshAll()`，每次点开菜单栏面板都会立即重跑插件。
-- **Swift 工具链兼容**：上游 `Package.swift` 写死 `tools-version: 6.3`，但代码本身没用到 6.3 特性。补丁把它降到 `6.2`，解锁本地 Swift 6.2.x 构建。
-- **Hero 条目**：今日总览第一条把合计数字放进 `name` 字段（item 标题位字号最大），同时通过 `badge` 和右侧 `ratio` 数值三处冗余展示。
+**Right column shows `--`**: you're running unpatched UsageBoard. The `trailingText` feature requires the patch.
 
-## 路线图
+**Gemini panel still shows with `0 tokens`**: you're running unpatched UsageBoard, or the Gemini plugin is from before the empty-items change — `cp plugins/gemini-cli-usage-plugin.py ~/Library/Application\ Support/UsageBoard/plugins/` and click the menu-bar icon to refresh.
 
-- [x] 桌面小组件（原生 WidgetKit）：参见 [widget/](widget/) 与 [docs/WIDGET.md](docs/WIDGET.md)
-- [ ] 统一三家单 CLI 插件的进度条语义
-- [ ] 支持自定义模型分组与别名
+---
 
-## 许可
+## Contributing
 
-MIT。插件脚本可自由修改与再分发。
+PRs welcome. Useful directions:
+
+- New CLI plugins (e.g. Aider, Cursor CLI, Cline, OpenRouter) — copy any `*-usage-plugin.py` as a template, follow the `# UsageBoardPlugin: ... # /UsageBoardPlugin` metadata block.
+- Better colour/threshold rules — see `docs/COLORS.md`.
+- Native widget polish — once the Apple Developer Program issue is sorted, the `widget/` project is ready for distribution.
+- Localisations beyond `zh-Hans` / `en`.
+
+Please run `python3 plugins/<your-plugin>.py --usageboard-param USAGEBOARD_LANGUAGE=en` and confirm the JSON validates against existing fixtures before submitting.
+
+---
+
+## License
+
+MIT — see [LICENSE](./LICENSE). Plugin scripts are free to modify and redistribute.
+
+## Acknowledgements
+
+- [UsageBoard](https://github.com/marsmay/UsageBoard) — the menu-bar host this project plugs into.
+- [lobe-icons](https://github.com/lobehub/lobe-icons) — plugin icon set referenced in `examples/config.example.json`.
