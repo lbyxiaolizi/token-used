@@ -57,6 +57,17 @@ CLIs with zero data hide automatically — install all four plugins anyway and u
 
 ## Quick Start
 
+### Option A: Homebrew (recommended)
+
+```bash
+brew tap unistark/tap
+brew install tokenused
+```
+
+Plugins land in `$(brew --prefix)/opt/tokenused/share/tokenused/`. `brew info tokenused` prints the four-step activation guide (patch + build UsageBoard, copy plugins, optional config drop-in).
+
+### Option B: Manual
+
 ```bash
 # 1. Clone
 git clone https://github.com/uniStark/TokenUsed.git

@@ -57,6 +57,17 @@
 
 ## 快速开始
 
+### 路径 A：Homebrew（推荐）
+
+```bash
+brew tap unistark/tap
+brew install tokenused
+```
+
+插件会装到 `$(brew --prefix)/opt/tokenused/share/tokenused/`。`brew info tokenused` 会打印四步激活说明（打补丁构建 UsageBoard、拷贝插件、可选样例配置）。
+
+### 路径 B：手动
+
 ```bash
 # 1. 克隆
 git clone https://github.com/uniStark/TokenUsed.git
