@@ -46,6 +46,7 @@
 #       "required": false,
 #       "defaultValue": "30d",
 #       "options": [
+#         {"label": "今日", "label@zh-Hans": "今日", "label@en": "Today", "value": "today"},
 #         {"label": "7 天", "label@zh-Hans": "7 天", "label@en": "7 days", "value": "7d"},
 #         {"label": "30 天", "label@zh-Hans": "30 天", "label@en": "30 days", "value": "30d"},
 #         {"label": "90 天", "label@zh-Hans": "90 天", "label@en": "90 days", "value": "90d"},

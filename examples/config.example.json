@@ -59,6 +59,12 @@
             "name" : "CHART_PERIOD",
             "options" : [
               {
+                "label" : "今日",
+                "label@en" : "Today",
+                "label@zh-Hans" : "今日",
+                "value" : "today"
+              },
+              {
                 "label" : "7 天",
                 "label@en" : "7 days",
                 "label@zh-Hans" : "7 天",
@@ -155,6 +161,12 @@
             "name" : "STAT_PERIOD",
             "options" : [
               {
+                "label" : "今日",
+                "label@en" : "Today",
+                "label@zh-Hans" : "今日",
+                "value" : "today"
+              },
+              {
                 "label" : "7 天",
                 "label@en" : "7 days",
                 "label@zh-Hans" : "7 天",
@@ -249,6 +261,12 @@
             "name" : "STAT_PERIOD",
             "options" : [
               {
+                "label" : "今日",
+                "label@en" : "Today",
+                "label@zh-Hans" : "今日",
+                "value" : "today"
+              },
+              {
                 "label" : "7 天",
                 "label@en" : "7 days",
                 "label@zh-Hans" : "7 天",
@@ -318,6 +336,12 @@
             "label@zh-Hans" : "默认统计周期",
             "name" : "STAT_PERIOD",
             "options" : [
+              {
+                "label" : "今日",
+                "label@en" : "Today",
+                "label@zh-Hans" : "今日",
+                "value" : "today"
+              },
               {
                 "label" : "7 天",
                 "label@en" : "7 days",

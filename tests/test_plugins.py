@@ -37,6 +37,8 @@ def _today_buckets(days: int = 7) -> list[datetime]:
 class PeriodHelpersTests(unittest.TestCase):
     def test_period_window_lengths(self):
         ref = date(2026, 5, 9)
+        self.assertEqual(_shared.period_window("today", today=ref),
+                         (ref, ref))
         self.assertEqual(_shared.period_window("7d",  today=ref),
                          (date(2026, 5, 3), ref))
         self.assertEqual(_shared.period_window("30d", today=ref),
@@ -49,10 +51,12 @@ class PeriodHelpersTests(unittest.TestCase):
 
     def test_period_chart_buckets_count_and_unit(self):
         ref = date(2026, 5, 9)
+        bt, ut = _shared.period_chart_buckets("today", today=ref)
         b7,  u7  = _shared.period_chart_buckets("7d",  today=ref)
         b30, u30 = _shared.period_chart_buckets("30d", today=ref)
         b90, u90 = _shared.period_chart_buckets("90d", today=ref)
         ba,  ua  = _shared.period_chart_buckets("all", today=ref)
+        self.assertEqual((len(bt),  ut),  (1,  "day"))
         self.assertEqual((len(b7),  u7),  (7,  "day"))
         self.assertEqual((len(b30), u30), (30, "day"))
         self.assertEqual((len(b90), u90), (13, "week"))
@@ -466,13 +470,15 @@ class PluginEndToEndTests(unittest.TestCase):
             "--usageboard-param", "STAT_PERIOD=7d",
         ])
         self.assertIn("dimensions", out)
-        self.assertEqual(set(out["dimensions"].keys()), {"7d", "30d", "90d", "all"})
+        self.assertEqual(set(out["dimensions"].keys()), {"today", "7d", "30d", "90d", "all"})
         self.assertEqual(out["defaultDimension"], "7d")
-        self.assertEqual(out["dimensionOrder"], ["7d", "30d", "90d", "all"])
+        self.assertEqual(out["dimensionOrder"], ["today", "7d", "30d", "90d", "all"])
+        self.assertEqual(out["dimensions"]["today"]["bucketUnit"], "day")
         self.assertEqual(out["dimensions"]["7d"]["bucketUnit"], "day")
         self.assertEqual(out["dimensions"]["30d"]["bucketUnit"], "day")
         self.assertEqual(out["dimensions"]["90d"]["bucketUnit"], "week")
         self.assertEqual(out["dimensions"]["all"]["bucketUnit"], "month")
+        self.assertEqual(len(out["dimensions"]["today"]["chart"]["buckets"]), 1)
         self.assertEqual(len(out["dimensions"]["7d"]["chart"]["buckets"]), 7)
         self.assertEqual(len(out["dimensions"]["30d"]["chart"]["buckets"]), 30)
         self.assertEqual(len(out["dimensions"]["90d"]["chart"]["buckets"]), 13)

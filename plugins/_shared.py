@@ -31,7 +31,7 @@ PARSER_VERSIONS = {
 TOKEN_MODES = ("billable", "raw")
 DEFAULT_TOKEN_MODE = "billable"
 
-PERIODS = ("7d", "30d", "90d", "all")
+PERIODS = ("today", "7d", "30d", "90d", "all")
 DEFAULT_PERIOD = "30d"
 
 
@@ -51,6 +51,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "no_data": {"en": "No stats data available", "zh-Hans": "暂无可用统计数据"},
     "no_data_today": {"en": "No usage today", "zh-Hans": "今日暂无用量"},
     "scan_failed": {"en": "Failed to scan sessions", "zh-Hans": "扫描会话失败"},
+    "period_today": {"en": "Today", "zh-Hans": "今日"},
     "period_7d": {"en": "7d", "zh-Hans": "7 天"},
     "period_30d": {"en": "30d", "zh-Hans": "30 天"},
     "period_90d": {"en": "90d", "zh-Hans": "90 天"},
@@ -109,9 +110,10 @@ def parse_iso(value: Any) -> datetime | None:
 def period_window(period: str, *, today: date | None = None) -> tuple[date, date]:
     """返回该 period 在 daily 粒度上的 (start_date, end_date)，给 mtime cutoff / 文件枚举用。
 
-    7d / 30d / 90d → 滑动 N 天；all → 12 个自然月（含本月）。
+    today → 仅今天；7d / 30d / 90d → 滑动 N 天；all → 12 个自然月（含本月）。
     """
     base = today or datetime.now().astimezone().date()
+    if period == "today": return base, base
     if period == "7d":   return base - timedelta(days=6),  base
     if period == "30d":  return base - timedelta(days=29), base
     if period == "90d":  return base - timedelta(days=89), base
@@ -131,6 +133,9 @@ def period_chart_buckets(period: str, *, today: date | None = None
     7d、30d → daily；90d → 13 weekly（ISO week）；all → 12 monthly。
     """
     base = today or datetime.now().astimezone().date()
+    if period == "today":
+        return ([{"id": base.isoformat(), "label": base.strftime("%m-%d"),
+                  "start": base.isoformat(), "end": base.isoformat()}], "day")
     if period in ("7d", "30d"):
         days = 7 if period == "7d" else 30
         start = base - timedelta(days=days - 1)
@@ -794,7 +799,7 @@ def scan_codex(data_dir: str, period: str, *,
 # ────────────────────────── high-level dimension builders ───────────────────
 
 def period_label(period: str, language: str) -> str:
-    key = {"7d": "period_7d", "30d": "period_30d",
+    key = {"today": "period_today", "7d": "period_7d", "30d": "period_30d",
            "90d": "period_90d", "all": "period_all"}.get(period, "period_7d")
     return tr(language, key)
 
