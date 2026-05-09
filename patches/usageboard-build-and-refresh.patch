@@ -222,7 +222,7 @@ index 298556f..955c554 100644
  }
  
 diff --git a/Sources/UsageBoardCore/Models.swift b/Sources/UsageBoardCore/Models.swift
-index 71e738c..7f70b24 100644
+index 71e738c..b7d2ee6 100644
 --- a/Sources/UsageBoardCore/Models.swift
 +++ b/Sources/UsageBoardCore/Models.swift
 @@ -343,12 +343,37 @@ public struct PluginOutput: Decodable, Equatable, Sendable {
@@ -291,7 +291,24 @@ index 71e738c..7f70b24 100644
      }
  
      public var progress: Double {
-@@ -527,6 +555,9 @@ public struct PluginSnapshot: Equatable, Identifiable, Sendable {
+@@ -440,7 +468,15 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
+     public func displayValue() -> String {
+         switch displayStyle {
+         case .percent:
+-            return "\(Int((progress * 100).rounded()))%"
++            let pct = progress * 100
++            if pct >= 10 || pct == 0 {
++                return "\(Int(pct.rounded()))%"
++            }
++            if pct >= 1 {
++                return String(format: "%.1f%%", pct)
++            }
++            // 极小占比保留 2 位小数避免被 round 成 0%（如 0.04% / 0.43%）
++            return String(format: "%.2f%%", pct)
+         case .ratio:
+             return "\(UsageItem.formatNumber(used)) / \(UsageItem.formatNumber(limit))"
+         }
+@@ -527,6 +563,9 @@ public struct PluginSnapshot: Equatable, Identifiable, Sendable {
      public var badge: String?
      public var iconURL: String?
      public var chart: PluginChart?
@@ -301,7 +318,7 @@ index 71e738c..7f70b24 100644
  
      public init(
          id: UUID,
-@@ -537,7 +568,10 @@ public struct PluginSnapshot: Equatable, Identifiable, Sendable {
+@@ -537,7 +576,10 @@ public struct PluginSnapshot: Equatable, Identifiable, Sendable {
          updatedAt: Date? = nil,
          badge: String? = nil,
          iconURL: String? = nil,
@@ -313,7 +330,7 @@ index 71e738c..7f70b24 100644
      ) {
          self.id = id
          self.pluginName = pluginName
-@@ -548,6 +582,9 @@ public struct PluginSnapshot: Equatable, Identifiable, Sendable {
+@@ -548,6 +590,9 @@ public struct PluginSnapshot: Equatable, Identifiable, Sendable {
          self.badge = badge
          self.iconURL = iconURL
          self.chart = chart
@@ -323,7 +340,7 @@ index 71e738c..7f70b24 100644
      }
  }
  
-@@ -556,11 +593,21 @@ public struct PluginCachedState: Codable, Equatable, Sendable {
+@@ -556,11 +601,21 @@ public struct PluginCachedState: Codable, Equatable, Sendable {
      public var items: [UsageItem]
      public var badge: String?
      public var chart: PluginChart?
