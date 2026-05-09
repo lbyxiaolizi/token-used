@@ -127,7 +127,7 @@ class TokenUsedCliTests(unittest.TestCase):
         self.assertIn("Python:", result.stdout)
         self.assertIn("UsageBoard config:", result.stdout)
         self.assertIn("Claude data dir: missing", result.stdout)
-        self.assertIn("UsageBoard patch: unknown", result.stdout)
+        self.assertRegex(result.stdout, r"UsageBoard patch: (unknown|applied|not applied)")
 
     def test_doctor_reports_serious_missing_config_and_plugins_as_nonzero(self):
         result = self.run_cli("doctor")

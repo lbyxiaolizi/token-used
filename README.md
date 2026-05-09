@@ -148,6 +148,7 @@ Prefer `tokenused install-config` when possible because it merges/upserts the To
 |---|---|---|
 | `Package.swift` | `swift-tools-version: 6.3` → `6.2` | Lets Swift 6.2 toolchains build it |
 | `Sources/UsageBoardApp/DashboardView.swift` | Adds `store.refreshAll()`, `visiblePlugins`, an in-panel segmented period picker, and layout tweaks for long titles / badges | Refresh on every panel open; auto-hide CLIs with no data; switch periods without re-running plugins; avoid clipped model names and large numbers |
+| `Sources/UsageBoardApp/UsageBoardStore.swift` | Preserves `iconURL`, `dimensions`, `defaultDimension`, and `dimensionOrder` in cached plugin state | Keeps dynamic icons and multi-period data after restart |
 | `Sources/UsageBoardCore/Models.swift` | Adds `dimensions`, `defaultDimension`, `dimensionOrder`, `iconURL`, and `UsageItem.trailingText` support across plugin output, snapshots, and cached state | Lets plugins emit all periods at once; allows dynamic icon overrides; shows token counts in the right column |
 | `Sources/UsageBoardCore/PluginExecutor.swift` | Changes the default timeout from `15s` to `180s` and prefers plugin-emitted `iconURL` | Prevents cold scans of large directories from timing out; lets Usage Overview show the dominant provider icon |
 

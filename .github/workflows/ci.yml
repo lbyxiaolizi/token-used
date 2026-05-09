@@ -17,7 +17,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Run tests
-        run: python3 -m unittest tests.test_plugins -v
+        run: python3 -m unittest tests.test_plugins tests.test_tokenused_cli -v
 
   patch-applies:
     name: UsageBoard patch applies and builds

@@ -148,6 +148,7 @@ sed "s|__HOME__|$HOME|g" examples/config.example.json > "$HOME/Library/Applicati
 |---|---|---|
 | `Package.swift` | `swift-tools-version: 6.3` → `6.2` | 让 Swift 6.2 toolchain 能构建 |
 | `Sources/UsageBoardApp/DashboardView.swift` | `.onAppear` 加 `store.refreshAll()`，加 `visiblePlugins`，加面板内 segmented period picker，并调整长标题 / badge 布局 | 每次开面板自动刷新；空数据 CLI 自动隐藏；周期切换不重跑插件；长模型名和大数字不被截断 |
+| `Sources/UsageBoardApp/UsageBoardStore.swift` | 缓存读写保留 `iconURL` / `dimensions` / `defaultDimension` / `dimensionOrder` | 重启后仍能保留动态图标和多周期数据 |
 | `Sources/UsageBoardCore/Models.swift` | `PluginOutput` / `PluginSnapshot` / `PluginCachedState` 支持 `dimensions`、`defaultDimension`、`dimensionOrder`、`iconURL`，`UsageItem` 支持 `trailingText` | 让插件一次输出多周期数据；允许插件动态覆盖图标；右列显示 token 数 |
 | `Sources/UsageBoardCore/PluginExecutor.swift` | 默认 timeout `15s` → `180s`，并优先使用 plugin 输出的 `iconURL` | 冷启动扫描大目录时不易超时；用量总览可显示当前主导 provider 图标 |
 
