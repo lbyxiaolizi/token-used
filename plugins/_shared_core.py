@@ -35,8 +35,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "this_week_total": {"en": "This week", "zh-Hans": "本周合计"},
     "this_month_total": {"en": "This month", "zh-Hans": "本月合计"},
     "total_tokens_for_period": {"en": "{period} total", "zh-Hans": "{period} 总用量"},
+    "token_mode": {"en": "token mode", "zh-Hans": "token 口径"},
     "mode_billable": {"en": "billable", "zh-Hans": "计费"},
     "mode_raw": {"en": "raw", "zh-Hans": "原始"},
+    "other_model": {"en": "Other {count} model", "zh-Hans": "其他 {count} 个模型"},
+    "other_models": {"en": "Other {count} models", "zh-Hans": "其他 {count} 个模型"},
 }
 
 

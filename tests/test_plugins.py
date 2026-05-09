@@ -461,11 +461,20 @@ class PluginEndToEndTests(unittest.TestCase):
         ])
         self.assertEqual(out["schemaVersion"], 1)
         self.assertEqual(len(out["chart"]["buckets"]), 7)
-        # 三家都有今日 token，所以 hero + 至少 3 个 model 行
-        self.assertGreaterEqual(len(out["items"]), 4)
+        # 三家都有今日 token；overview 列表默认只展开 Top 5，其余合并为 Other。
+        self.assertEqual(len(out["items"]), 7)
+        self.assertEqual(out["items"][-1]["id"], "overview-other-models")
+        self.assertIn("Other 1 model", out["items"][-1]["name"])
+        self.assertIn("billable", out["items"][0]["name"])
+        model_names = [item["name"] for item in out["items"][1:-1]]
+        self.assertTrue(any(name.startswith("Claude ·") for name in model_names))
+        self.assertTrue(any(name.startswith("Gemini ·") for name in model_names))
+        self.assertTrue(any(name.startswith("OpenAI ·") for name in model_names))
+        self.assertFalse(any("Claude · claude-" in name for name in model_names))
         # 验 hero 有 trailingText（i18n 输出）
         self.assertIn("trailingText", out["items"][0])
         self.assertIn("openai.png", out.get("iconURL", ""))
+        self.assertNotIn("providerTotals", out)
         for dim in out["dimensions"].values():
             self.assertNotIn("providerTotals", dim)
 
