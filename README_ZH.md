@@ -8,14 +8,14 @@
 
 <p align="center">
   <img src="images/menubar-panel.png" alt="UsageBoard 菜单栏面板" width="425"><br>
-  <sub>今日总览（hero 合计 + 各模型行 + 右列 token 数）与单 CLI 面板</sub>
+  <sub>用量总览（hero 合计 + 各模型行 + 右列 token 数）与单 CLI 面板</sub>
 </p>
 
 <details>
 <summary>📊 点开看 7 天图表展开形态</summary>
 
 <p align="center">
-  <img src="images/today-overview-expanded.png" alt="今日总览 7 天堆叠柱状图" width="425">
+  <img src="images/today-overview-expanded.png" alt="用量总览 7 天堆叠柱状图" width="425">
   <img src="images/cli-panels-expanded.png" alt="单 CLI 面板的 7 天图表" width="425"><br>
   <sub>点 panel 底部的箭头展开按模型堆叠的 7 天柱状图</sub>
 </p>
@@ -28,7 +28,7 @@
 
 - **不依赖任何远程 API**——完全离线读本地 JSONL/JSON 会话文件，**不需要 ChatGPT 订阅 token**。
 - **三家 CLI 一个面板**——Claude Code / Gemini CLI / Codex CLI 用量按模型聚合。
-- **今日总览 + 7/30 天图表**——hero 大数字显示三家今日合计，下方堆叠柱状图按模型分段。
+- **用量总览 + 7/30 天图表**——hero 大数字显示三家今日合计，下方堆叠柱状图按模型分段。
 - **空数据自动隐藏**——某 CLI 从没用过（如 Gemini），它的 panel 自动消失。
 - **右侧列直接显示 token 数**——通过 `trailingText` 字段把 UsageBoard 原本"重置时间"那一列改用为按行显示模型 token 数。
 - **附带原生 macOS WidgetKit 项目**——`widget/` 下代码完整；上桌面 widget gallery 需要付费 Apple Developer Program（详见[原生 widget 状态](#原生-widget-状态)）。
@@ -113,7 +113,7 @@ sed "s|__HOME__|$HOME|g" examples/config.example.json > "$HOME/Library/Applicati
 
 四个插件的所有参数都从 UsageBoard 设置面板读取，默认值开箱即用。需要时再覆写。
 
-### 今日总览 (`daily-overview-plugin.py`)
+### 用量总览 (`daily-overview-plugin.py`)
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
@@ -129,7 +129,7 @@ sed "s|__HOME__|$HOME|g" examples/config.example.json > "$HOME/Library/Applicati
 |---|---|---|
 | `*_DIR` | 同上 | 覆盖该 CLI 的扫描路径 |
 | `STAT_PERIOD` | `30d` | 默认周期：`today` / `7d` / `30d` / `90d` / `all` |
-| `TOKEN_MODE`（仅 Claude） | `billable` | 同今日总览。对 Codex/Gemini 面板无效（它们的 token 报告里没有 cache_read 概念） |
+| `TOKEN_MODE`（仅 Claude） | `billable` | 同用量总览。对 Codex/Gemini 面板无效（它们的 token 报告里没有 cache_read 概念） |
 
 > **面板内 segmented 切换**：每个 plugin 输出 `dimensions` 字段含全部 5 个 period 的预算数据，所以首次扫描完缓存后（~30s），点 `今日 ↔ 7d ↔ 30d ↔ 90d ↔ 全部` 立即切换——无需 spawn plugin、无需重 parse。选择通过 `@AppStorage("usageboard.period.<pluginID>")` 按 plugin 持久化。
 
@@ -140,7 +140,7 @@ sed "s|__HOME__|$HOME|g" examples/config.example.json > "$HOME/Library/Applicati
 ### 进度条配色含义
 
 四个插件的进度条**颜色规则不一样**，是设计如此：
-- **今日总览**：颜色按"该模型占今日总量的百分比"——红≥50%、橙≥25%、蓝<25%
+- **用量总览**：颜色按"该模型占今日总量的百分比"——红≥50%、橙≥25%、蓝<25%
 - **单 CLI**：颜色按"今天用量 ÷ 期内峰值日"——红≥100%（破峰）、橙≥80%、蓝<80%
 
 ---
@@ -150,7 +150,7 @@ sed "s|__HOME__|$HOME|g" examples/config.example.json > "$HOME/Library/Applicati
 ```
 TokenUsed/
 ├── plugins/                            # UsageBoard Python 插件
-│   ├── daily-overview-plugin.py        # ⭐ 今日总览（三家聚合，按模型分行 + 7 天柱状图）
+│   ├── daily-overview-plugin.py        # ⭐ 用量总览（三家聚合，按模型分行 + 7 天柱状图）
 │   ├── claude-code-usage-plugin.py     # Claude Code 单独面板
 │   ├── gemini-cli-usage-plugin.py      # Gemini CLI 单独面板
 │   └── codex-local-usage-plugin.py     # Codex CLI 单独面板

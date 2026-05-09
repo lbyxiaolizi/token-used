@@ -8,14 +8,14 @@
 
 <p align="center">
   <img src="images/menubar-panel.png" alt="UsageBoard menu-bar panel" width="425"><br>
-  <sub>Today Overview (hero total + per-model rows + right-column token count) atop per-CLI panels</sub>
+  <sub>Usage Overview (hero total + per-model rows + right-column token count) atop per-CLI panels</sub>
 </p>
 
 <details>
 <summary>📊 Click to see expanded 7-day charts</summary>
 
 <p align="center">
-  <img src="images/today-overview-expanded.png" alt="Today Overview with 7-day stacked chart" width="425">
+  <img src="images/today-overview-expanded.png" alt="Usage Overview with 7-day stacked chart" width="425">
   <img src="images/cli-panels-expanded.png" alt="Per-CLI panels with 7-day charts" width="425"><br>
   <sub>Click the chevron under any panel to expand its 7-day stacked bar chart by model</sub>
 </p>

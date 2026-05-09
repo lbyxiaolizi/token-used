@@ -11,9 +11,9 @@
         "description@en" : "Aggregate today's token usage across Claude \/ Gemini \/ Codex by model",
         "description@zh-Hans" : "聚合 Claude \/ Gemini \/ Codex 当天所有模型的 token 用量",
         "icon" : "https:\/\/raw.githubusercontent.com\/lobehub\/lobe-icons\/refs\/heads\/master\/packages\/static-png\/light\/openai.png",
-        "name" : "今日总览",
-        "name@en" : "Today Overview",
-        "name@zh-Hans" : "今日总览",
+        "name" : "用量总览",
+        "name@en" : "Usage Overview",
+        "name@zh-Hans" : "用量总览",
         "parameters" : [
           {
             "defaultValue" : "~\/.claude\/projects",
@@ -117,7 +117,7 @@
           }
         ]
       },
-      "name" : "今日总览",
+      "name" : "用量总览",
       "parameterValues" : {
         "CHART_PERIOD" : "30d",
         "CLAUDE_DIR" : "~\/.claude\/projects",

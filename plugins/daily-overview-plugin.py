@@ -2,13 +2,13 @@
 # UsageBoardPlugin:
 # {
 #   "schemaVersion": 1,
-#   "name": "今日总览",
-#   "name@zh-Hans": "今日总览",
-#   "name@en": "Today Overview",
+#   "name": "用量总览",
+#   "name@zh-Hans": "用量总览",
+#   "name@en": "Usage Overview",
 #   "icon": "https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/light/openai.png",
-#   "description": "聚合 Claude / Gemini / Codex 当天所有模型的 token 用量",
-#   "description@zh-Hans": "聚合 Claude / Gemini / Codex 当天所有模型的 token 用量",
-#   "description@en": "Aggregate today's token usage across Claude / Gemini / Codex by model",
+#   "description": "聚合 Claude / Gemini / Codex 各时段的 token 用量（面板内可切今日 / 7d / 30d / 90d / 全部）",
+#   "description@zh-Hans": "聚合 Claude / Gemini / Codex 各时段的 token 用量（面板内可切今日 / 7d / 30d / 90d / 全部）",
+#   "description@en": "Aggregate Claude / Gemini / Codex token usage across periods (in-panel switch: today / 7d / 30d / 90d / all)",
 #   "parameters": [
 #     {
 #       "name": "CLAUDE_DIR",
@@ -69,7 +69,7 @@
 #   ]
 # }
 # /UsageBoardPlugin
-"""聚合 Claude / Gemini / Codex 三家本地会话的 token 用量。"""
+"""聚合 Claude / Gemini / Codex 三家本地会话的 token 用量（多 period 维度）。"""
 from __future__ import annotations
 
 import json
