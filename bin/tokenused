@@ -1,0 +1,345 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import stat
+import subprocess
+import sys
+from pathlib import Path
+
+
+VISIBLE_PLUGINS = [
+    "daily-overview-plugin.py",
+    "claude-code-usage-plugin.py",
+    "gemini-cli-usage-plugin.py",
+    "codex-local-usage-plugin.py",
+]
+TOKENUSED_STATE_IDS = [
+    "daily-overview",
+    "claude-code-local",
+    "gemini-cli-local",
+    "codex-local",
+]
+DATA_DIRS = [
+    ("Claude data dir", "~/.claude/projects"),
+    ("Gemini data dir", "~/.gemini/tmp"),
+    ("Codex data dir", "~/.codex"),
+]
+
+
+def default_repo_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def default_usageboard_root() -> Path:
+    return Path.home() / "Library" / "Application Support" / "UsageBoard"
+
+
+def expand_path(value: str) -> Path:
+    return Path(os.path.expandvars(os.path.expanduser(value)))
+
+
+def plugin_dir(usageboard_root: Path) -> Path:
+    return usageboard_root / "plugins"
+
+
+def config_path(usageboard_root: Path) -> Path:
+    return usageboard_root / "config.json"
+
+
+def example_config_path(repo_root: Path) -> Path:
+    return repo_root / "examples" / "config.example.json"
+
+
+def repo_plugins_dir(repo_root: Path) -> Path:
+    return repo_root / "plugins"
+
+
+def repo_plugin_names(repo_root: Path) -> list[str]:
+    source_dir = repo_plugins_dir(repo_root)
+    if not source_dir.is_dir():
+        return VISIBLE_PLUGINS[:]
+    return [path.name for path in sorted(source_dir.glob("*.py"))]
+
+
+def load_example_config(repo_root: Path) -> dict:
+    raw = example_config_path(repo_root).read_text(encoding="utf-8")
+    raw = raw.replace("/__HOME__", str(Path.home()))
+    raw = raw.replace("__HOME__", str(Path.home()))
+    return json.loads(raw)
+
+
+def load_config(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def tokenused_plugins_from_example(repo_root: Path) -> list[dict]:
+    example = load_example_config(repo_root)
+    by_state = {p.get("stateID"): p for p in example.get("plugins", [])}
+    return [by_state[state_id] for state_id in TOKENUSED_STATE_IDS if state_id in by_state]
+
+
+def command_sync_plugins(args: argparse.Namespace) -> int:
+    source_dir = repo_plugins_dir(args.repo_root)
+    target_dir = plugin_dir(args.usageboard_root)
+    if not source_dir.is_dir():
+        print(f"repo plugins dir missing: {source_dir}", file=sys.stderr)
+        return 2
+
+    target_dir.mkdir(parents=True, exist_ok=True)
+    copied = []
+    for source in sorted(source_dir.glob("*.py")):
+        target = target_dir / source.name
+        shutil.copy2(source, target)
+        source_mode = stat.S_IMODE(source.stat().st_mode)
+        os.chmod(target, source_mode)
+        copied.append(target.name)
+
+    print(f"Copied {len(copied)} plugins to {target_dir}")
+    for name in copied:
+        print(f"- {name}")
+    return 0
+
+
+def command_install_config(args: argparse.Namespace) -> int:
+    usageboard_root = args.usageboard_root
+    path = config_path(usageboard_root)
+    usageboard_root.mkdir(parents=True, exist_ok=True)
+
+    if not path.exists():
+        config = load_example_config(args.repo_root)
+        path.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        print(f"Created UsageBoard config: {path}")
+        return 0
+
+    config = load_config(path)
+    plugins = config.get("plugins")
+    if not isinstance(plugins, list):
+        plugins = []
+        config["plugins"] = plugins
+
+    replacements = {p.get("stateID"): p for p in tokenused_plugins_from_example(args.repo_root)}
+    existing_states = {p.get("stateID") for p in plugins if isinstance(p, dict)}
+    merged = [
+        plugin for plugin in plugins
+        if not (isinstance(plugin, dict) and plugin.get("stateID") in replacements)
+    ]
+    for state_id in TOKENUSED_STATE_IDS:
+        plugin = replacements.get(state_id)
+        if plugin is not None:
+            merged.append(plugin)
+    config["plugins"] = merged
+
+    path.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    action = "Updated" if existing_states & set(TOKENUSED_STATE_IDS) else "Installed"
+    print(f"{action} TokenUsed plugins in UsageBoard config: {path}")
+    return 0
+
+
+def patch_status(repo_root: Path, usageboard_root: Path) -> str:
+    patch = repo_root / "patches" / "usageboard-build-and-refresh.patch"
+    if not patch.exists():
+        return "unknown (patch file missing)"
+
+    candidates = []
+    if (usageboard_root / "Sources").exists():
+        candidates.append(usageboard_root)
+    sibling = repo_root.parent / "UsageBoard"
+    if sibling not in candidates:
+        candidates.append(sibling)
+
+    for candidate in candidates:
+        if not candidate.is_dir():
+            continue
+        if not ((candidate / ".git").exists() or (candidate / "Package.swift").exists() or (candidate / "Sources").exists()):
+            continue
+        try:
+            reverse = subprocess.run(
+                ["git", "apply", "--reverse", "--check", str(patch)],
+                cwd=candidate,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+        except OSError as exc:
+            return f"unknown ({exc})"
+        if reverse.returncode == 0:
+            return f"applied ({candidate})"
+        try:
+            forward = subprocess.run(
+                ["git", "apply", "--check", str(patch)],
+                cwd=candidate,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+        except OSError as exc:
+            return f"unknown ({exc})"
+        if forward.returncode == 0:
+            return f"not applied ({candidate})"
+        return f"unknown ({candidate})"
+    return "unknown"
+
+
+def command_doctor(args: argparse.Namespace) -> int:
+    failures: list[str] = []
+    usageboard_root = args.usageboard_root
+    plugins_root = plugin_dir(usageboard_root)
+    cfg_path = config_path(usageboard_root)
+
+    print(f"Python: {sys.version.split()[0]} ({sys.executable})")
+    print(f"Repo root: {args.repo_root}")
+    print(f"UsageBoard root: {usageboard_root}")
+
+    if plugins_root.is_dir():
+        print(f"UsageBoard plugins dir: ok ({plugins_root})")
+    else:
+        print(f"UsageBoard plugins dir: missing ({plugins_root})")
+        failures.append("plugins dir missing")
+
+    config = None
+    if cfg_path.exists():
+        try:
+            config = load_config(cfg_path)
+            print(f"UsageBoard config: ok ({cfg_path})")
+        except Exception as exc:
+            print(f"UsageBoard config: invalid ({cfg_path}: {exc})")
+            failures.append("config invalid")
+    else:
+        print(f"UsageBoard config: missing ({cfg_path})")
+        failures.append("config missing")
+
+    if config is not None:
+        states = {
+            plugin.get("stateID")
+            for plugin in config.get("plugins", [])
+            if isinstance(plugin, dict)
+        }
+        missing_states = [state for state in TOKENUSED_STATE_IDS if state not in states]
+        if missing_states:
+            print(f"TokenUsed config entries: missing ({', '.join(missing_states)})")
+            failures.append("tokenused config missing")
+        else:
+            print("TokenUsed config entries: ok")
+
+    expected_plugins = repo_plugin_names(args.repo_root)
+    missing_plugins = [
+        name for name in expected_plugins
+        if not (plugins_root / name).exists()
+    ]
+    if missing_plugins:
+        print(f"installed plugins: missing ({', '.join(missing_plugins)})")
+        failures.append("plugins missing")
+    else:
+        print("installed plugins: ok")
+
+    for label, raw_path in DATA_DIRS:
+        path = expand_path(raw_path)
+        status = "ok" if path.exists() else "missing"
+        print(f"{label}: {status} ({path})")
+
+    print(f"UsageBoard patch: {patch_status(args.repo_root, usageboard_root)}")
+    return 1 if failures else 0
+
+
+def smoke_params_for(plugin_name: str, usageboard_root: Path) -> list[str]:
+    data_root = usageboard_root / "smoke-data"
+    claude_dir = data_root / "claude"
+    gemini_dir = data_root / "gemini"
+    codex_dir = data_root / "codex"
+    claude_dir.mkdir(parents=True, exist_ok=True)
+    gemini_dir.mkdir(parents=True, exist_ok=True)
+    codex_dir.mkdir(parents=True, exist_ok=True)
+
+    common = ["--usageboard-param", "USAGEBOARD_LANGUAGE=en"]
+    if plugin_name == "daily-overview-plugin.py":
+        return [
+            *common,
+            "--usageboard-param",
+            f"CLAUDE_DIR={claude_dir}",
+            "--usageboard-param",
+            f"GEMINI_DIR={gemini_dir}",
+            "--usageboard-param",
+            f"CODEX_DIR={codex_dir}",
+        ]
+    if plugin_name == "claude-code-usage-plugin.py":
+        return [*common, "--usageboard-param", f"DATA_DIR={claude_dir}"]
+    if plugin_name == "gemini-cli-usage-plugin.py":
+        return [*common, "--usageboard-param", f"DATA_DIR={gemini_dir}"]
+    if plugin_name == "codex-local-usage-plugin.py":
+        return [*common, "--usageboard-param", f"DATA_DIR={codex_dir}"]
+    return common
+
+
+def command_smoke(args: argparse.Namespace) -> int:
+    report: dict[str, dict] = {}
+    ok = True
+    for name in VISIBLE_PLUGINS:
+        script = repo_plugins_dir(args.repo_root) / name
+        if not script.exists():
+            report[name] = {"ok": False, "error": f"missing: {script}"}
+            ok = False
+            continue
+        result = subprocess.run(
+            [sys.executable, str(script), *smoke_params_for(name, args.usageboard_root)],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            report[name] = {
+                "ok": False,
+                "exitCode": result.returncode,
+                "stderr": result.stderr.strip(),
+            }
+            ok = False
+            continue
+        try:
+            payload = json.loads(result.stdout)
+            schema_version = payload["schemaVersion"]
+        except Exception as exc:
+            report[name] = {"ok": False, "error": f"invalid JSON/schemaVersion: {exc}"}
+            ok = False
+            continue
+        report[name] = {"ok": True, "schemaVersion": schema_version}
+
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0 if ok else 1
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="tokenused",
+        description="Install and diagnose TokenUsed UsageBoard plugins.",
+    )
+    parser.add_argument("--repo-root", type=Path, default=default_repo_root())
+    parser.add_argument("--usageboard-root", type=Path, default=default_usageboard_root())
+    subcommands = parser.add_subparsers(dest="command", required=True)
+
+    doctor = subcommands.add_parser("doctor", help="Check local TokenUsed/UsageBoard installation.")
+    doctor.set_defaults(func=command_doctor)
+
+    sync = subcommands.add_parser("sync-plugins", help="Copy repo plugins into UsageBoard.")
+    sync.set_defaults(func=command_sync_plugins)
+
+    install = subcommands.add_parser("install-config", help="Create or merge UsageBoard config.")
+    install.set_defaults(func=command_install_config)
+
+    smoke = subcommands.add_parser("smoke", help="Run all visible plugins and validate JSON output.")
+    smoke.set_defaults(func=command_smoke)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    args.repo_root = args.repo_root.expanduser().resolve()
+    args.usageboard_root = args.usageboard_root.expanduser().resolve()
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
