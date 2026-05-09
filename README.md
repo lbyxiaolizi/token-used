@@ -29,6 +29,9 @@
 - **Zero remote API calls** — everything is read from local JSONL/JSON session files; no ChatGPT subscription or quota API needed.
 - **Three CLIs in one panel** — Claude Code, Gemini CLI, Codex CLI usage aggregated by model.
 - **Usage overview + multi-period charts** — a hero card shows the selected period total, plus model-stacked charts for `today` / `7d` / `30d` / `90d` / `all`.
+- **Cleaner overview rows** — the Usage Overview lists the Top 5 models and folds the rest into `Other`, with best-effort provider/source labels on model rows.
+- **Clear token accounting** — Claude can be shown as `billable` or `raw`, and Codex/Gemini keep their reported-token semantics.
+- **Setup helper CLI** — `tokenused doctor`, `sync-plugins`, `install-config`, and `smoke` make installation and debugging repeatable.
 - **Auto-hide empty panels** — if you've never used a CLI (e.g. Gemini), its panel disappears automatically.
 - **Right-column token count** — UsageBoard's reset-time slot is repurposed via the `trailingText` field to show the per-model token count.
 - **Native macOS WidgetKit project included** — code-complete in `widget/`; gallery distribution requires a paid Apple Developer Program account (see [Native Widget](#native-widget-status)).
@@ -64,7 +67,32 @@ brew tap unistark/tap
 brew install tokenused
 ```
 
-Plugins land in `$(brew --prefix)/opt/tokenused/share/tokenused/`. `brew info tokenused` prints the four-step activation guide (patch + build UsageBoard, copy plugins, optional config drop-in).
+Plugins land in `$(brew --prefix)/opt/tokenused/share/tokenused/`, and the helper CLI becomes available as `tokenused`.
+
+Shortest path after Homebrew:
+
+```bash
+# 1. Check prerequisites and paths
+tokenused doctor
+
+# 2. Patch + build UsageBoard (one time)
+git clone https://github.com/marsmay/UsageBoard.git ../UsageBoard
+cd ../UsageBoard
+git apply "$(brew --prefix)/opt/tokenused/share/tokenused/patches/usageboard-build-and-refresh.patch"
+bash scripts/build.sh
+cd -
+
+# 3. Copy/update TokenUsed plugins into UsageBoard
+tokenused sync-plugins
+
+# 4. Merge TokenUsed entries into UsageBoard config without removing other plugins
+tokenused install-config
+
+# 5. Run installed-plugin smoke checks
+tokenused smoke
+```
+
+`brew info tokenused` also prints the activation guide.
 
 ### 🛠️ Option B: Manual
 
@@ -80,18 +108,35 @@ git apply ../TokenUsed/patches/usageboard-build-and-refresh.patch
 bash scripts/build.sh
 cd ../TokenUsed
 
-# 3. Install plugins
-mkdir -p "$HOME/Library/Application Support/UsageBoard/plugins"
-cp plugins/*.py "$HOME/Library/Application Support/UsageBoard/plugins/"
-chmod +x "$HOME/Library/Application Support/UsageBoard/plugins/"*.py
+# 3. Check prerequisites and paths
+python3 bin/tokenused doctor
 
-# 4. (optional) Drop in the example config — substitute __HOME__ with your real $HOME
-sed "s|__HOME__|$HOME|g" examples/config.example.json > "$HOME/Library/Application Support/UsageBoard/config.json"
+# 4. Copy/update TokenUsed plugins into UsageBoard
+python3 bin/tokenused sync-plugins
 
-# 5. Open UsageBoard, click the menu-bar icon — you should see four panels
+# 5. Merge TokenUsed entries into UsageBoard config without removing other plugins
+python3 bin/tokenused install-config
+
+# 6. Run installed-plugin smoke checks
+python3 bin/tokenused smoke
+
+# 7. Open UsageBoard, click the menu-bar icon — you should see the overview + per-CLI panels
 ```
 
 If anything goes wrong, see [Troubleshooting](#troubleshooting) below.
+
+### Manual fallback without the helper CLI
+
+If you cannot use `bin/tokenused`, the old manual install path still works:
+
+```bash
+mkdir -p "$HOME/Library/Application Support/UsageBoard/plugins"
+cp plugins/*.py "$HOME/Library/Application Support/UsageBoard/plugins/"
+chmod +x "$HOME/Library/Application Support/UsageBoard/plugins/"*.py
+sed "s|__HOME__|$HOME|g" examples/config.example.json > "$HOME/Library/Application Support/UsageBoard/config.json"
+```
+
+Prefer `tokenused install-config` when possible because it merges/upserts the TokenUsed plugin entries instead of replacing your whole UsageBoard config.
 
 ---
 
@@ -107,6 +152,21 @@ If anything goes wrong, see [Troubleshooting](#troubleshooting) below.
 | `Sources/UsageBoardCore/PluginExecutor.swift` | Changes the default timeout from `15s` to `180s` and prefers plugin-emitted `iconURL` | Prevents cold scans of large directories from timing out; lets Usage Overview show the dominant provider icon |
 
 If you'd rather use UsageBoard unmodified, the plugins still work — you just lose auto-hide, right-column token counts, in-panel period switching, and dynamic icons.
+
+---
+
+## 🧰 CLI Reference
+
+Use `tokenused <command>` after Homebrew install, or `python3 bin/tokenused <command>` from a manual clone.
+
+| Command | What it does |
+|---|---|
+| `doctor` | Checks Python, UsageBoard paths, plugin/config locations, session-data visibility, and common patch/install problems. Start here when the panel is empty or stale. |
+| `sync-plugins` | Copies or updates TokenUsed plugin scripts in `~/Library/Application Support/UsageBoard/plugins/` and makes them executable. |
+| `install-config` | Merges/upserts TokenUsed plugin entries into UsageBoard `config.json`; it should not remove unrelated UsageBoard plugins or user settings. |
+| `smoke` | Runs lightweight installed-plugin checks so you can catch JSON/schema/runtime errors before opening UsageBoard. |
+
+The CLI helps with TokenUsed installation only. The UsageBoard patch remains the key enhancement path: without it, plugins can still run, but multi-period switching, right-column token counts, auto-hide, layout fixes, and dynamic icons are degraded or unavailable.
 
 ---
 
@@ -136,6 +196,8 @@ All four plugins read parameters from the UsageBoard plugin settings UI. Default
 
 > **Why two modes?** Claude's `usage` report counts every prompt-cache hit as `cache_read_input_tokens`. With heavy tool use, this can balloon the "raw" total to 100×+ what you actually billed. `billable` matches the four-component cost formula Anthropic uses (`input + output + cache_creation`); switching only re-projects the in-cache totals — no reparse.
 
+> **Overview rows**: the Daily Overview shows the Top 5 models for the selected period and folds the rest into `Other`. Model names are kept as specific as the source data allows, and rows include best-effort source/provider hints where available.
+
 To customise: open UsageBoard → menu-bar icon → gear → **Plugins** → click the plugin → adjust parameters. No restart needed.
 
 ### Progress-bar colour semantics
@@ -150,6 +212,8 @@ The four plugins use **different** colour rules on purpose:
 
 ```
 TokenUsed/
+├── bin/
+│   └── tokenused                         # Install/debug helper CLI
 ├── plugins/                            # UsageBoard Python plugins
 │   ├── daily-overview-plugin.py        # ⭐ Today overview (3 CLIs aggregated, per-model rows + 7-day bar chart)
 │   ├── claude-code-usage-plugin.py     # Claude Code single-CLI panel
@@ -192,11 +256,21 @@ The overview plugin reads all three in parallel.
 
 ## 🐛 Troubleshooting
 
+**Start with `tokenused doctor`**: it checks the common failure points in one place:
+```bash
+tokenused doctor
+# or, from a manual clone:
+python3 bin/tokenused doctor
+```
+Use its output to confirm whether the issue is missing UsageBoard paths, missing session data, unsynced plugins, an unmerged config, or an unpatched UsageBoard build.
+
 **Panel shows "JSON 解析失败 / failed to parse"**: run the plugin manually to see the raw error:
 ```bash
 python3 "$HOME/Library/Application Support/UsageBoard/plugins/daily-overview-plugin.py" \
   --usageboard-param USAGEBOARD_LANGUAGE=en
 ```
+
+You can also run `tokenused smoke` to exercise the installed plugins through the helper CLI.
 
 **Build error `swift-tools-version 6.3 is not supported`**: you forgot to apply the patch. `cd UsageBoard && git apply ../TokenUsed/patches/usageboard-build-and-refresh.patch`.
 

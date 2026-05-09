@@ -29,6 +29,9 @@
 - **不依赖任何远程 API**——完全离线读本地 JSONL/JSON 会话文件，**不需要 ChatGPT 订阅 token**。
 - **三家 CLI 一个面板**——Claude Code / Gemini CLI / Codex CLI 用量按模型聚合。
 - **用量总览 + 多周期图表**——hero 大数字显示所选周期合计，下方堆叠图按模型分段；支持 `today` / `7d` / `30d` / `90d` / `all`。
+- **总览行更清爽**——用量总览只展开 Top 5 模型，其余折叠为 `其他`，模型行会尽量标出来源/provider。
+- **token 口径更清楚**——Claude 支持 `billable` / `raw` 两种口径，Codex/Gemini 保持各自上报 token 语义。
+- **安装辅助 CLI**——`tokenused doctor`、`sync-plugins`、`install-config`、`smoke` 让安装和排错可重复。
 - **空数据自动隐藏**——某 CLI 从没用过（如 Gemini），它的 panel 自动消失。
 - **右侧列直接显示 token 数**——通过 `trailingText` 字段把 UsageBoard 原本"重置时间"那一列改用为按行显示模型 token 数。
 - **附带原生 macOS WidgetKit 项目**——`widget/` 下代码完整；上桌面 widget gallery 需要付费 Apple Developer Program（详见[原生 widget 状态](#原生-widget-状态)）。
@@ -64,7 +67,32 @@ brew tap unistark/tap
 brew install tokenused
 ```
 
-插件会装到 `$(brew --prefix)/opt/tokenused/share/tokenused/`。`brew info tokenused` 会打印四步激活说明（打补丁构建 UsageBoard、拷贝插件、可选样例配置）。
+插件会装到 `$(brew --prefix)/opt/tokenused/share/tokenused/`，辅助 CLI 会作为 `tokenused` 可用。
+
+Homebrew 后的最短路径：
+
+```bash
+# 1. 检查依赖和路径
+tokenused doctor
+
+# 2. 给 UsageBoard 打补丁并本地构建（一次性）
+git clone https://github.com/marsmay/UsageBoard.git ../UsageBoard
+cd ../UsageBoard
+git apply "$(brew --prefix)/opt/tokenused/share/tokenused/patches/usageboard-build-and-refresh.patch"
+bash scripts/build.sh
+cd -
+
+# 3. 拷贝/更新 TokenUsed 插件到 UsageBoard
+tokenused sync-plugins
+
+# 4. 把 TokenUsed 配置 merge/upsert 到 UsageBoard，不删除其他插件
+tokenused install-config
+
+# 5. 跑已安装插件的 smoke 检查
+tokenused smoke
+```
+
+`brew info tokenused` 也会打印激活说明。
 
 ### 🛠️ 路径 B：手动
 
@@ -80,18 +108,35 @@ git apply ../TokenUsed/patches/usageboard-build-and-refresh.patch
 bash scripts/build.sh
 cd ../TokenUsed
 
-# 3. 部署插件
-mkdir -p "$HOME/Library/Application Support/UsageBoard/plugins"
-cp plugins/*.py "$HOME/Library/Application Support/UsageBoard/plugins/"
-chmod +x "$HOME/Library/Application Support/UsageBoard/plugins/"*.py
+# 3. 检查依赖和路径
+python3 bin/tokenused doctor
 
-# 4. （可选）套用样例配置——把占位符 __HOME__ 替换为当前 $HOME
-sed "s|__HOME__|$HOME|g" examples/config.example.json > "$HOME/Library/Application Support/UsageBoard/config.json"
+# 4. 拷贝/更新 TokenUsed 插件到 UsageBoard
+python3 bin/tokenused sync-plugins
 
-# 5. 打开 UsageBoard，点菜单栏图标，应该看到 4 张 panel
+# 5. 把 TokenUsed 配置 merge/upsert 到 UsageBoard，不删除其他插件
+python3 bin/tokenused install-config
+
+# 6. 跑已安装插件的 smoke 检查
+python3 bin/tokenused smoke
+
+# 7. 打开 UsageBoard，点菜单栏图标，应该看到总览 + 单 CLI 面板
 ```
 
 遇到问题见下文 [排错](#排错)。
+
+### 不使用辅助 CLI 的手动兜底
+
+如果暂时不能用 `bin/tokenused`，旧的手动安装路径仍可用：
+
+```bash
+mkdir -p "$HOME/Library/Application Support/UsageBoard/plugins"
+cp plugins/*.py "$HOME/Library/Application Support/UsageBoard/plugins/"
+chmod +x "$HOME/Library/Application Support/UsageBoard/plugins/"*.py
+sed "s|__HOME__|$HOME|g" examples/config.example.json > "$HOME/Library/Application Support/UsageBoard/config.json"
+```
+
+能用时优先跑 `tokenused install-config`，因为它会 merge/upsert TokenUsed 插件项，而不是替换整个 UsageBoard 配置。
 
 ---
 
@@ -107,6 +152,21 @@ sed "s|__HOME__|$HOME|g" examples/config.example.json > "$HOME/Library/Applicati
 | `Sources/UsageBoardCore/PluginExecutor.swift` | 默认 timeout `15s` → `180s`，并优先使用 plugin 输出的 `iconURL` | 冷启动扫描大目录时不易超时；用量总览可显示当前主导 provider 图标 |
 
 如果你坚持用未打补丁的 UsageBoard，插件依然能跑——只是失去自动隐藏、右列 token 数、面板内多周期切换和动态图标等增强。
+
+---
+
+## 🧰 CLI 命令参考
+
+Homebrew 安装后使用 `tokenused <command>`；手动 clone 后在仓库内使用 `python3 bin/tokenused <command>`。
+
+| 命令 | 作用 |
+|---|---|
+| `doctor` | 检查 Python、UsageBoard 路径、插件/配置位置、会话数据可见性，以及常见 patch/install 问题。面板空白或数据不刷新时先跑它。 |
+| `sync-plugins` | 把 TokenUsed 插件脚本复制/更新到 `~/Library/Application Support/UsageBoard/plugins/`，并设置可执行权限。 |
+| `install-config` | 把 TokenUsed 插件项 merge/upsert 到 UsageBoard `config.json`；不应删除其他 UsageBoard 插件或用户设置。 |
+| `smoke` | 对已安装插件做轻量检查，打开 UsageBoard 前先发现 JSON/schema/runtime 错误。 |
+
+这个 CLI 只负责让 TokenUsed 安装更稳。UsageBoard patch 仍是增强体验的关键：未打补丁时插件可运行，但多周期切换、右列 token 数、空数据隐藏、布局修正和动态图标会降级或不可用。
 
 ---
 
@@ -136,6 +196,8 @@ sed "s|__HOME__|$HOME|g" examples/config.example.json > "$HOME/Library/Applicati
 
 > **为什么有两种口径？** Claude 的 `usage` 把每次 prompt cache 命中都按 `cache_read_input_tokens` 计入。tool 用得多时 raw 总数会比真正按账单算的高 100×+。`billable` 对齐 Anthropic 计费四件套（`input + output + cache_creation`）；切换只在 cache 内做投影，不会触发重 parse。
 
+> **总览模型行**：用量总览展示所选周期 Top 5 模型，其余模型折叠为 `其他`。模型名会尽量保留来源数据里的具体名称；可判断来源时，会在行内尽量补上来源/provider 提示。
+
 自定义路径：UsageBoard → 菜单栏图标 → 齿轮 → **插件** → 点插件 → 调参数。无需重启。
 
 ### 进度条配色含义
@@ -150,6 +212,8 @@ sed "s|__HOME__|$HOME|g" examples/config.example.json > "$HOME/Library/Applicati
 
 ```
 TokenUsed/
+├── bin/
+│   └── tokenused                         # 安装/排错辅助 CLI
 ├── plugins/                            # UsageBoard Python 插件
 │   ├── daily-overview-plugin.py        # ⭐ 用量总览（三家聚合，按模型分行 + 7 天柱状图）
 │   ├── claude-code-usage-plugin.py     # Claude Code 单独面板
@@ -192,11 +256,21 @@ TokenUsed/
 
 ## 🐛 排错
 
+**先跑 `tokenused doctor`**：它会集中检查最常见的失败点：
+```bash
+tokenused doctor
+# 或者手动 clone 后：
+python3 bin/tokenused doctor
+```
+根据输出确认问题是 UsageBoard 路径缺失、没有本地会话数据、插件未同步、配置未合并，还是 UsageBoard 未打补丁。
+
 **Panel 显示 "JSON 解析失败"**：手动跑插件看原始报错：
 ```bash
 python3 "$HOME/Library/Application Support/UsageBoard/plugins/daily-overview-plugin.py" \
   --usageboard-param USAGEBOARD_LANGUAGE=zh-Hans
 ```
+
+也可以跑 `tokenused smoke`，通过辅助 CLI 检查已安装插件。
 
 **构建报 `swift-tools-version 6.3 is not supported`**：你忘了打补丁。`cd UsageBoard && git apply ../TokenUsed/patches/usageboard-build-and-refresh.patch`。
 
