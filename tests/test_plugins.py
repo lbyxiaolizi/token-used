@@ -80,14 +80,14 @@ class FmtTokensTests(unittest.TestCase):
     def test_en_units(self):
         self.assertEqual(_shared.fmt_tokens(0, "en"), "0")
         self.assertEqual(_shared.fmt_tokens(999, "en"), "999")
-        self.assertEqual(_shared.fmt_tokens(1500, "en"), "1.5k")
+        self.assertEqual(_shared.fmt_tokens(1500, "en"), "1.5K")
         self.assertEqual(_shared.fmt_tokens(2_500_000, "en"), "2.50M")
         self.assertEqual(_shared.fmt_tokens(3_500_000_000, "en"), "3.50B")
 
-    def test_zh_units(self):
-        self.assertEqual(_shared.fmt_tokens(9999, "zh-Hans"), "9999")
-        self.assertEqual(_shared.fmt_tokens(15_000, "zh-Hans"), "1.50万")
-        self.assertEqual(_shared.fmt_tokens(150_000_000, "zh-Hans"), "1.50亿")
+    def test_zh_uses_same_units(self):
+        self.assertEqual(_shared.fmt_tokens(9999, "zh-Hans"), "10.0K")
+        self.assertEqual(_shared.fmt_tokens(15_000, "zh-Hans"), "15.0K")
+        self.assertEqual(_shared.fmt_tokens(150_000_000, "zh-Hans"), "150.00M")
 
     def test_negative_clamped(self):
         self.assertEqual(_shared.fmt_tokens(-100, "en"), "0")
@@ -451,6 +451,7 @@ class PluginEndToEndTests(unittest.TestCase):
         self.assertGreaterEqual(len(out["items"]), 4)
         # 验 hero 有 trailingText（i18n 输出）
         self.assertIn("trailingText", out["items"][0])
+        self.assertIn("openai.png", out.get("iconURL", ""))
 
     def test_daily_overview_handles_missing_provider_dir(self):
         """某 provider 目录不存在不应让整个 daily-overview 崩。"""

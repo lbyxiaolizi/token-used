@@ -9,7 +9,7 @@ index 36fecf5..e4d6e73 100644
  
  import PackageDescription
 diff --git a/Sources/UsageBoardApp/DashboardView.swift b/Sources/UsageBoardApp/DashboardView.swift
-index 298556f..955c554 100644
+index 372223c..c0265be 100644
 --- a/Sources/UsageBoardApp/DashboardView.swift
 +++ b/Sources/UsageBoardApp/DashboardView.swift
 @@ -30,6 +30,16 @@ struct DashboardView: View {
@@ -138,7 +138,22 @@ index 298556f..955c554 100644
      var body: some View {
          VStack(alignment: .leading, spacing: 10) {
              HStack(spacing: 6) {
-@@ -258,9 +305,24 @@ struct PluginGroupView: View {
+@@ -247,17 +294,32 @@ struct PluginGroupView: View {
+                     .font(.headline)
+                 if let badge = snapshot.badge {
+                     Text(badge.uppercased())
+-                        .font(.system(size: 9, weight: .bold))
++                        .font(.system(size: 15, weight: .heavy, design: .rounded))
+                         .foregroundStyle(.white)
+-                        .padding(.horizontal, 4)
+-                        .padding(.vertical, 1)
++                        .padding(.horizontal, 8)
++                        .padding(.vertical, 3)
+                         .background(.black)
+-                        .clipShape(RoundedRectangle(cornerRadius: 3))
++                        .clipShape(RoundedRectangle(cornerRadius: 5))
+                 }
+                 Spacer()
                  stateView
              }
  
@@ -159,12 +174,17 @@ index 298556f..955c554 100644
 +
              Divider()
  
--            if snapshot.items.isEmpty {
-+            if activeItems.isEmpty {
-                 Text(emptyText)
+             if case .failed(let message) = snapshot.state {
+@@ -273,7 +335,7 @@ struct PluginGroupView: View {
+                         .textSelection(.enabled)
+                 }
+                 .padding(.vertical, 8)
+-            } else if snapshot.items.isEmpty {
++            } else if activeItems.isEmpty {
+                 Text(strings.text(.noUsageData))
                      .font(.callout)
                      .foregroundStyle(.secondary)
-@@ -268,13 +330,13 @@ struct PluginGroupView: View {
+@@ -281,13 +343,13 @@ struct PluginGroupView: View {
                      .padding(.vertical, 18)
              } else {
                  VStack(spacing: 8) {
@@ -180,7 +200,7 @@ index 298556f..955c554 100644
                  Divider()
                  Button {
                      isChartExpanded.toggle()
-@@ -358,24 +420,28 @@ struct UsageItemRow: View {
+@@ -368,24 +430,28 @@ struct UsageItemRow: View {
      var language: AppLanguage
  
      var body: some View {
@@ -222,12 +242,14 @@ index 298556f..955c554 100644
  }
  
 diff --git a/Sources/UsageBoardCore/Models.swift b/Sources/UsageBoardCore/Models.swift
-index 71e738c..b7d2ee6 100644
+index f731047..0894345 100644
 --- a/Sources/UsageBoardCore/Models.swift
 +++ b/Sources/UsageBoardCore/Models.swift
-@@ -343,12 +343,37 @@ public struct PluginOutput: Decodable, Equatable, Sendable {
+@@ -343,12 +343,43 @@ public struct PluginOutput: Decodable, Equatable, Sendable {
+     public var updatedAt: Date
      public var items: [UsageItem]
      public var badge: String?
++    public var iconURL: String?
      public var chart: PluginChart?
 -
 -    public init(updatedAt: Date, items: [UsageItem], badge: String? = nil, chart: PluginChart? = nil) {
@@ -236,6 +258,7 @@ index 71e738c..b7d2ee6 100644
 +    public var dimensionOrder: [String]?
 +
 +    public init(updatedAt: Date, items: [UsageItem], badge: String? = nil,
++                iconURL: String? = nil,
 +                chart: PluginChart? = nil,
 +                dimensions: [String: PluginDimension]? = nil,
 +                defaultDimension: String? = nil,
@@ -243,7 +266,11 @@ index 71e738c..b7d2ee6 100644
          self.updatedAt = updatedAt
          self.items = items
          self.badge = badge
-         self.chart = chart
++        self.iconURL = iconURL
++        self.chart = chart
++        self.dimensions = dimensions
++        self.defaultDimension = defaultDimension
++        self.dimensionOrder = dimensionOrder
 +        self.dimensions = dimensions
 +        self.defaultDimension = defaultDimension
 +        self.dimensionOrder = dimensionOrder
@@ -261,11 +288,10 @@ index 71e738c..b7d2ee6 100644
 +        self.label = label
 +        self.bucketUnit = bucketUnit
 +        self.items = items
-+        self.chart = chart
+         self.chart = chart
      }
  }
- 
-@@ -411,6 +436,7 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
+@@ -412,6 +443,7 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
      public var resetAt: Date?
      public var status: UsageStatus
      public var color: String?
@@ -273,7 +299,7 @@ index 71e738c..b7d2ee6 100644
  
      public init(
          id: String,
-@@ -420,7 +446,8 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
+@@ -421,7 +453,8 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
          displayStyle: UsageDisplayStyle,
          resetAt: Date? = nil,
          status: UsageStatus = .unknown,
@@ -283,7 +309,7 @@ index 71e738c..b7d2ee6 100644
      ) {
          self.id = id
          self.name = name
-@@ -430,6 +457,7 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
+@@ -431,6 +464,7 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
          self.resetAt = resetAt
          self.status = status
          self.color = color
@@ -291,7 +317,7 @@ index 71e738c..b7d2ee6 100644
      }
  
      public var progress: Double {
-@@ -440,7 +468,15 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
+@@ -441,7 +475,15 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
      public func displayValue() -> String {
          switch displayStyle {
          case .percent:
@@ -308,7 +334,7 @@ index 71e738c..b7d2ee6 100644
          case .ratio:
              return "\(UsageItem.formatNumber(used)) / \(UsageItem.formatNumber(limit))"
          }
-@@ -527,6 +563,9 @@ public struct PluginSnapshot: Equatable, Identifiable, Sendable {
+@@ -524,6 +566,9 @@ public struct PluginSnapshot: Equatable, Identifiable, Sendable {
      public var badge: String?
      public var iconURL: String?
      public var chart: PluginChart?
@@ -318,7 +344,7 @@ index 71e738c..b7d2ee6 100644
  
      public init(
          id: UUID,
-@@ -537,7 +576,10 @@ public struct PluginSnapshot: Equatable, Identifiable, Sendable {
+@@ -534,7 +579,10 @@ public struct PluginSnapshot: Equatable, Identifiable, Sendable {
          updatedAt: Date? = nil,
          badge: String? = nil,
          iconURL: String? = nil,
@@ -330,19 +356,11 @@ index 71e738c..b7d2ee6 100644
      ) {
          self.id = id
          self.pluginName = pluginName
-@@ -548,6 +590,9 @@ public struct PluginSnapshot: Equatable, Identifiable, Sendable {
-         self.badge = badge
-         self.iconURL = iconURL
-         self.chart = chart
-+        self.dimensions = dimensions
-+        self.defaultDimension = defaultDimension
-+        self.dimensionOrder = dimensionOrder
-     }
- }
- 
-@@ -556,11 +601,21 @@ public struct PluginCachedState: Codable, Equatable, Sendable {
+@@ -552,12 +600,25 @@ public struct PluginCachedState: Codable, Equatable, Sendable {
+     public var updatedAt: Date
      public var items: [UsageItem]
      public var badge: String?
++    public var iconURL: String?
      public var chart: PluginChart?
 -
 -    public init(updatedAt: Date, items: [UsageItem], badge: String? = nil, chart: PluginChart? = nil) {
@@ -351,6 +369,7 @@ index 71e738c..b7d2ee6 100644
 +    public var dimensionOrder: [String]?
 +
 +    public init(updatedAt: Date, items: [UsageItem], badge: String? = nil,
++                iconURL: String? = nil,
 +                chart: PluginChart? = nil,
 +                dimensions: [String: PluginDimension]? = nil,
 +                defaultDimension: String? = nil,
@@ -358,6 +377,7 @@ index 71e738c..b7d2ee6 100644
          self.updatedAt = updatedAt
          self.items = items
          self.badge = badge
++        self.iconURL = iconURL
          self.chart = chart
 +        self.dimensions = dimensions
 +        self.defaultDimension = defaultDimension
@@ -365,10 +385,10 @@ index 71e738c..b7d2ee6 100644
      }
  }
 diff --git a/Sources/UsageBoardCore/PluginExecutor.swift b/Sources/UsageBoardCore/PluginExecutor.swift
-index cabe8d4..3830496 100644
+index ead2d76..cdcc264 100644
 --- a/Sources/UsageBoardCore/PluginExecutor.swift
 +++ b/Sources/UsageBoardCore/PluginExecutor.swift
-@@ -3,7 +3,7 @@
+@@ -20,7 +20,7 @@ private final class DataBuffer: @unchecked Sendable {
  public struct PluginExecutor: Sendable {
      public var timeoutSeconds: TimeInterval
  
@@ -377,15 +397,17 @@ index cabe8d4..3830496 100644
          self.timeoutSeconds = timeoutSeconds
      }
  
-@@ -61,7 +61,10 @@ public struct PluginExecutor: Sendable {
+@@ -116,8 +116,11 @@ public struct PluginExecutor: Sendable {
+                 items: pluginOutput.items,
                  updatedAt: pluginOutput.updatedAt,
                  badge: pluginOutput.badge,
-                 iconURL: configuration.metadata?.icon,
+-                iconURL: configuration.metadata?.icon,
 -                chart: pluginOutput.chart
++                iconURL: pluginOutput.iconURL ?? configuration.metadata?.icon,
 +                chart: pluginOutput.chart,
 +                dimensions: pluginOutput.dimensions,
 +                defaultDimension: pluginOutput.defaultDimension,
 +                dimensionOrder: pluginOutput.dimensionOrder
              )
          } catch {
-             return failed(configuration: configuration, displayName: displayName, message: "\(text(.jsonParseFailed, language: language))\(error.localizedDescription)")
+             if let errorOutput = try? JSONDecoder().decode(PluginOutputError.self, from: outputData),

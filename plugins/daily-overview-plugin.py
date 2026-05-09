@@ -84,7 +84,6 @@ from _shared import (  # noqa: E402
     PERIODS,
     SCHEMA_VERSION,
     build_overview_dimension,
-    fmt_tokens,
     lang,
     normalize_period,
     normalize_token_mode,
@@ -121,6 +120,15 @@ def main() -> int:
     default_items = default_dim.get("items") or []
     badge = default_items[0].get("trailingText") if default_items else None
 
+    provider_icons = {
+        "claude": "https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/light/claude.png",
+        "gemini": "https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/light/gemini.png",
+        "codex":  "https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/light/openai.png",
+    }
+    provider_totals = default_dim.get("providerTotals") or {}
+    top_prov = max(provider_totals, key=provider_totals.get) if provider_totals else None
+    icon_url = provider_icons.get(top_prov) if top_prov and provider_totals.get(top_prov, 0) > 0 else None
+
     out = {
         "schemaVersion": SCHEMA_VERSION,
         "updatedAt": utc_now_iso(),
@@ -132,6 +140,8 @@ def main() -> int:
     }
     if badge:
         out["badge"] = badge
+    if icon_url:
+        out["iconURL"] = icon_url
     print(json.dumps(out, ensure_ascii=False))
     return 0
 

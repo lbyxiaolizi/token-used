@@ -212,18 +212,12 @@ def fmt_tokens(n: int | float, language: str = "en") -> str:
     n = int(n)
     if n < 0:
         n = 0
-    if language == "zh-Hans":
-        if n >= 100_000_000:
-            return f"{n / 100_000_000:.2f}亿"
-        if n >= 10_000:
-            return f"{n / 10_000:.2f}万"
-        return str(n)
     if n >= 1_000_000_000:
         return f"{n / 1_000_000_000:.2f}B"
     if n >= 1_000_000:
         return f"{n / 1_000_000:.2f}M"
     if n >= 1_000:
-        return f"{n / 1_000:.1f}k"
+        return f"{n / 1_000:.1f}K"
     return str(n)
 
 
@@ -869,6 +863,7 @@ def build_overview_dimension(*, claude_dir: str, gemini_dir: str, codex_dir: str
 
     chart_meta, unit = period_chart_buckets(period, today=datetime.now().astimezone().date())
     by_bucket: dict[str, dict[str, int]] = {b["id"]: {} for b in chart_meta}
+    provider_totals: dict[str, int] = {}
 
     def _run(scan_fn, data_dir):
         return scan_fn(data_dir, period, mode=mode)
@@ -885,6 +880,7 @@ def build_overview_dimension(*, claude_dir: str, gemini_dir: str, codex_dir: str
             except Exception as exc:
                 print(f"[daily-overview] scan_{prov} failed: {exc}", file=sys.stderr)
                 continue
+            provider_totals[prov] = int(sum(_totals.values()))
             merge_bucket_maps(by_bucket, sub_by_bucket)
 
     # period 内所有 bucket 累计
@@ -926,4 +922,4 @@ def build_overview_dimension(*, claude_dir: str, gemini_dir: str, codex_dir: str
     if not any(b["segments"] for b in chart["buckets"]):
         chart["message"] = tr(language, "no_data")
     return {"label": period_label(period, language), "bucketUnit": unit,
-            "items": items, "chart": chart}
+            "items": items, "chart": chart, "providerTotals": provider_totals}
