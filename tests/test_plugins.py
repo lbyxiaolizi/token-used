@@ -93,6 +93,20 @@ class FmtTokensTests(unittest.TestCase):
         self.assertEqual(_shared.fmt_tokens(-100, "en"), "0")
 
 
+class SharedModuleLayoutTests(unittest.TestCase):
+    def test_shared_is_small_facade_over_split_modules(self):
+        expected = {
+            "_shared_core.py",
+            "_shared_cache.py",
+            "_shared_parsers.py",
+            "_shared_builders.py",
+        }
+        actual = {p.name for p in PLUGINS.glob("_shared_*.py")}
+        self.assertTrue(expected.issubset(actual))
+        shared_lines = (PLUGINS / "_shared.py").read_text(encoding="utf-8").splitlines()
+        self.assertLessEqual(len(shared_lines), 80)
+
+
 class ParserTests(unittest.TestCase):
     def setUp(self):
         self.scratch = Path(tempfile.mkdtemp(prefix="tokenused-parsers-"))
@@ -452,6 +466,8 @@ class PluginEndToEndTests(unittest.TestCase):
         # 验 hero 有 trailingText（i18n 输出）
         self.assertIn("trailingText", out["items"][0])
         self.assertIn("openai.png", out.get("iconURL", ""))
+        for dim in out["dimensions"].values():
+            self.assertNotIn("providerTotals", dim)
 
     def test_daily_overview_handles_missing_provider_dir(self):
         """某 provider 目录不存在不应让整个 daily-overview 崩。"""

@@ -128,6 +128,10 @@ def main() -> int:
     provider_totals = default_dim.get("providerTotals") or {}
     top_prov = max(provider_totals, key=provider_totals.get) if provider_totals else None
     icon_url = provider_icons.get(top_prov) if top_prov and provider_totals.get(top_prov, 0) > 0 else None
+    public_dims = {
+        key: {k: v for k, v in dim.items() if k != "providerTotals"}
+        for key, dim in dims.items()
+    }
 
     out = {
         "schemaVersion": SCHEMA_VERSION,
@@ -136,7 +140,7 @@ def main() -> int:
         "chart": default_dim.get("chart", {}),
         "defaultDimension": default_period,
         "dimensionOrder": list(PERIODS),
-        "dimensions": dims,
+        "dimensions": public_dims,
     }
     if badge:
         out["badge"] = badge

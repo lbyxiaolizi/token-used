@@ -28,7 +28,7 @@
 
 - **Zero remote API calls** — everything is read from local JSONL/JSON session files; no ChatGPT subscription or quota API needed.
 - **Three CLIs in one panel** — Claude Code, Gemini CLI, Codex CLI usage aggregated by model.
-- **Today overview + 7/30 day chart** — a hero card shows today's total across all CLIs, plus a stacked bar chart by model.
+- **Usage overview + multi-period charts** — a hero card shows the selected period total, plus model-stacked charts for `today` / `7d` / `30d` / `90d` / `all`.
 - **Auto-hide empty panels** — if you've never used a CLI (e.g. Gemini), its panel disappears automatically.
 - **Right-column token count** — UsageBoard's reset-time slot is repurposed via the `trailingText` field to show the per-model token count.
 - **Native macOS WidgetKit project included** — code-complete in `widget/`; gallery distribution requires a paid Apple Developer Program account (see [Native Widget](#native-widget-status)).
@@ -97,15 +97,16 @@ If anything goes wrong, see [Troubleshooting](#troubleshooting) below.
 
 ## 🩹 What the Patch Changes
 
-`patches/usageboard-build-and-refresh.patch` makes three small changes to upstream UsageBoard:
+`patches/usageboard-build-and-refresh.patch` makes several small changes to upstream UsageBoard:
 
 | File | Change | Why |
 |---|---|---|
 | `Package.swift` | `swift-tools-version: 6.3` → `6.2` | Lets Swift 6.2 toolchains build it |
-| `Sources/UsageBoardApp/DashboardView.swift` | Adds `store.refreshAll()` to `.onAppear` + filters out empty panels (`visiblePlugins`) | Refresh on every panel open; auto-hide CLIs with no data |
-| `Sources/UsageBoardCore/Models.swift` | Adds optional `trailingText: String?` field on `UsageItem` | Lets plugins put per-row token counts in the right column |
+| `Sources/UsageBoardApp/DashboardView.swift` | Adds `store.refreshAll()`, `visiblePlugins`, an in-panel segmented period picker, and layout tweaks for long titles / badges | Refresh on every panel open; auto-hide CLIs with no data; switch periods without re-running plugins; avoid clipped model names and large numbers |
+| `Sources/UsageBoardCore/Models.swift` | Adds `dimensions`, `defaultDimension`, `dimensionOrder`, `iconURL`, and `UsageItem.trailingText` support across plugin output, snapshots, and cached state | Lets plugins emit all periods at once; allows dynamic icon overrides; shows token counts in the right column |
+| `Sources/UsageBoardCore/PluginExecutor.swift` | Changes the default timeout from `15s` to `180s` and prefers plugin-emitted `iconURL` | Prevents cold scans of large directories from timing out; lets Usage Overview show the dominant provider icon |
 
-If you'd rather use UsageBoard unmodified, the plugins still work — you just lose auto-hide and the right-column token count.
+If you'd rather use UsageBoard unmodified, the plugins still work — you just lose auto-hide, right-column token counts, in-panel period switching, and dynamic icons.
 
 ---
 
@@ -153,9 +154,11 @@ TokenUsed/
 │   ├── daily-overview-plugin.py        # ⭐ Today overview (3 CLIs aggregated, per-model rows + 7-day bar chart)
 │   ├── claude-code-usage-plugin.py     # Claude Code single-CLI panel
 │   ├── gemini-cli-usage-plugin.py      # Gemini CLI single-CLI panel
-│   └── codex-local-usage-plugin.py     # Codex CLI single-CLI panel
+│   ├── codex-local-usage-plugin.py     # Codex CLI single-CLI panel
+│   ├── _shared.py                      # Compatibility facade imported by plugin entrypoints
+│   └── _shared_*.py                    # Private shared modules (core/cache/parsers/builders)
 ├── patches/
-│   └── usageboard-build-and-refresh.patch  # The three UsageBoard patches
+│   └── usageboard-build-and-refresh.patch  # UsageBoard UI / schema / executor enhancements
 ├── examples/
 │   └── config.example.json             # Drop-in UsageBoard config with all four plugins registered
 ├── widget/                             # Native macOS WidgetKit app (Xcode project — see status below)
@@ -232,7 +235,7 @@ rtk proxy git diff > ../TokenUsed/patches/usageboard-build-and-refresh.patch
 git stash && git apply --check ../TokenUsed/patches/usageboard-build-and-refresh.patch && git stash pop
 ```
 
-CI (`.github/workflows/ci.yml`) runs `git apply --check` on every push so a malformed patch fails the build before it can ship.
+CI (`.github/workflows/ci.yml`) runs `git apply --check` and a patched `swift build` on every push, so malformed or uncompilable patches fail before they can ship.
 
 ---
 

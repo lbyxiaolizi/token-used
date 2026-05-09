@@ -20,7 +20,7 @@ jobs:
         run: python3 -m unittest tests.test_plugins -v
 
   patch-applies:
-    name: UsageBoard patch still applies
+    name: UsageBoard patch applies and builds
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
@@ -31,6 +31,11 @@ jobs:
         run: |
           cd ../UsageBoard
           git apply --check "$GITHUB_WORKSPACE/patches/usageboard-build-and-refresh.patch"
+      - name: Build patched UsageBoard
+        run: |
+          cd ../UsageBoard
+          git apply "$GITHUB_WORKSPACE/patches/usageboard-build-and-refresh.patch"
+          swift build
 
   plugin-smoke:
     name: Plugins produce valid JSON

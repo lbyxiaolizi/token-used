@@ -28,7 +28,7 @@
 
 - **不依赖任何远程 API**——完全离线读本地 JSONL/JSON 会话文件，**不需要 ChatGPT 订阅 token**。
 - **三家 CLI 一个面板**——Claude Code / Gemini CLI / Codex CLI 用量按模型聚合。
-- **用量总览 + 7/30 天图表**——hero 大数字显示三家今日合计，下方堆叠柱状图按模型分段。
+- **用量总览 + 多周期图表**——hero 大数字显示所选周期合计，下方堆叠图按模型分段；支持 `today` / `7d` / `30d` / `90d` / `all`。
 - **空数据自动隐藏**——某 CLI 从没用过（如 Gemini），它的 panel 自动消失。
 - **右侧列直接显示 token 数**——通过 `trailingText` 字段把 UsageBoard 原本"重置时间"那一列改用为按行显示模型 token 数。
 - **附带原生 macOS WidgetKit 项目**——`widget/` 下代码完整；上桌面 widget gallery 需要付费 Apple Developer Program（详见[原生 widget 状态](#原生-widget-状态)）。
@@ -97,15 +97,16 @@ sed "s|__HOME__|$HOME|g" examples/config.example.json > "$HOME/Library/Applicati
 
 ## 🩹 补丁修改了什么
 
-`patches/usageboard-build-and-refresh.patch` 给上游 UsageBoard 做了三处小改：
+`patches/usageboard-build-and-refresh.patch` 给上游 UsageBoard 做了几处小改：
 
 | 文件 | 修改 | 原因 |
 |---|---|---|
 | `Package.swift` | `swift-tools-version: 6.3` → `6.2` | 让 Swift 6.2 toolchain 能构建 |
-| `Sources/UsageBoardApp/DashboardView.swift` | `.onAppear` 加 `store.refreshAll()`，并加 `visiblePlugins` 过滤空 panel | 每次开面板自动刷新；空数据 CLI 自动隐藏 |
-| `Sources/UsageBoardCore/Models.swift` | `UsageItem` 加可选 `trailingText: String?` 字段 | 让插件给每行右列填"token 数"等自由文本 |
+| `Sources/UsageBoardApp/DashboardView.swift` | `.onAppear` 加 `store.refreshAll()`，加 `visiblePlugins`，加面板内 segmented period picker，并调整长标题 / badge 布局 | 每次开面板自动刷新；空数据 CLI 自动隐藏；周期切换不重跑插件；长模型名和大数字不被截断 |
+| `Sources/UsageBoardCore/Models.swift` | `PluginOutput` / `PluginSnapshot` / `PluginCachedState` 支持 `dimensions`、`defaultDimension`、`dimensionOrder`、`iconURL`，`UsageItem` 支持 `trailingText` | 让插件一次输出多周期数据；允许插件动态覆盖图标；右列显示 token 数 |
+| `Sources/UsageBoardCore/PluginExecutor.swift` | 默认 timeout `15s` → `180s`，并优先使用 plugin 输出的 `iconURL` | 冷启动扫描大目录时不易超时；用量总览可显示当前主导 provider 图标 |
 
-如果你坚持用未打补丁的 UsageBoard，插件依然能跑——只是失去自动隐藏和右列 token 数。
+如果你坚持用未打补丁的 UsageBoard，插件依然能跑——只是失去自动隐藏、右列 token 数、面板内多周期切换和动态图标等增强。
 
 ---
 
@@ -153,9 +154,11 @@ TokenUsed/
 │   ├── daily-overview-plugin.py        # ⭐ 用量总览（三家聚合，按模型分行 + 7 天柱状图）
 │   ├── claude-code-usage-plugin.py     # Claude Code 单独面板
 │   ├── gemini-cli-usage-plugin.py      # Gemini CLI 单独面板
-│   └── codex-local-usage-plugin.py     # Codex CLI 单独面板
+│   ├── codex-local-usage-plugin.py     # Codex CLI 单独面板
+│   ├── _shared.py                      # 兼容门面：插件入口继续从这里 import
+│   └── _shared_*.py                    # 私有共享模块（core/cache/parsers/builders）
 ├── patches/
-│   └── usageboard-build-and-refresh.patch  # 三处 UsageBoard 改动
+│   └── usageboard-build-and-refresh.patch  # UsageBoard UI / schema / executor 增强补丁
 ├── examples/
 │   └── config.example.json             # 已注册四个插件的 UsageBoard 完整配置
 ├── widget/                             # 原生 macOS WidgetKit 应用（Xcode 项目，见状态说明）
@@ -232,7 +235,7 @@ rtk proxy git diff > ../TokenUsed/patches/usageboard-build-and-refresh.patch
 git stash && git apply --check ../TokenUsed/patches/usageboard-build-and-refresh.patch && git stash pop
 ```
 
-CI (`.github/workflows/ci.yml`) 在每次 push 都跑 `git apply --check`，patch 一旦坏掉直接挂 CI，避免坏 patch 流到 main。
+CI (`.github/workflows/ci.yml`) 在每次 push 都跑 `git apply --check` 和补丁后的 `swift build`，patch 一旦坏掉或编译失败会直接挂 CI，避免坏 patch 流到 main。
 
 ---
 
