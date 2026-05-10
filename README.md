@@ -98,13 +98,13 @@ tokenused smoke
 
 ```bash
 # 1. Clone
-git clone https://github.com/uniStark/TokenUsed.git
-cd TokenUsed
+git clone https://github.com/uniStark/token-used.git
+cd token-used
 
 # 2. Patch + build UsageBoard (one time)
 git clone https://github.com/marsmay/UsageBoard.git ../UsageBoard
 cd ../UsageBoard
-git apply ../TokenUsed/patches/usageboard-build-and-refresh.patch
+git apply ../token-used/patches/usageboard-build-and-refresh.patch
 bash scripts/build.sh
 cd ../TokenUsed
 
