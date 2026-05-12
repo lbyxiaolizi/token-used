@@ -9,7 +9,7 @@ index 36fecf5..e4d6e73 100644
  
  import PackageDescription
 diff --git a/Sources/UsageBoardApp/DashboardView.swift b/Sources/UsageBoardApp/DashboardView.swift
-index 07757ee..bd2f293 100644
+index 07757ee..ac1f626 100644
 --- a/Sources/UsageBoardApp/DashboardView.swift
 +++ b/Sources/UsageBoardApp/DashboardView.swift
 @@ -14,6 +14,16 @@ struct DashboardView: View {
@@ -195,6 +195,15 @@ index 07757ee..bd2f293 100644
                  VStack(spacing: 0) {
                      if isChartExpanded {
                          TokenUsageChartView(chart: chart, language: language)
+@@ -311,7 +379,7 @@ struct PluginGroupView: View {
+                 .font(UB.Font.cardTitle)
+                 .lineLimit(1)
+             if let badge = snapshot.badge {
+-                PlanTag(text: badge)
++                PlanTag(text: badge, size: 14)
+             }
+             if case .failed = snapshot.state {
+                 Text(language == .en ? "Error" : "错误")
 @@ -370,7 +438,7 @@ struct UsageItemRow: View {
                  .frame(height: 18)
                  .layoutPriority(1)
@@ -205,10 +214,33 @@ index 07757ee..bd2f293 100644
                  .monospacedDigit()
                  .lineLimit(1)
 diff --git a/Sources/UsageBoardApp/DesignSystem/PlanTag.swift b/Sources/UsageBoardApp/DesignSystem/PlanTag.swift
-index b923f4a..24c8df7 100644
+index b923f4a..868ddd4 100644
 --- a/Sources/UsageBoardApp/DesignSystem/PlanTag.swift
 +++ b/Sources/UsageBoardApp/DesignSystem/PlanTag.swift
-@@ -29,7 +29,7 @@ struct PlanTag: View {
+@@ -2,16 +2,18 @@ import SwiftUI
+ 
+ struct PlanTag: View {
+     var text: String
++    var size: CGFloat = 9.5
+ 
+     var body: some View {
+         Text(text.uppercased())
+-            .font(.system(size: 9.5, weight: .bold))
++            .font(.system(size: size, weight: .bold))
+             .tracking(0.5)
++            .monospacedDigit()
+             .foregroundStyle(foreground)
+-            .padding(.horizontal, 5)
+-            .padding(.vertical, 1.5)
++            .padding(.horizontal, size * 0.55)
++            .padding(.vertical, size * 0.18)
+             .background(
+-                RoundedRectangle(cornerRadius: 4, style: .continuous)
++                RoundedRectangle(cornerRadius: max(4, size * 0.35), style: .continuous)
+                     .fill(background)
+             )
+     }
+@@ -29,7 +31,7 @@ struct PlanTag: View {
          case "MAX", "MAX 5X", "MAX 20X":
              return (Color.orange.opacity(0.18), Color.orange)
          default:
