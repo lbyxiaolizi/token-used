@@ -28,8 +28,8 @@
 
 - **Zero remote API calls** — everything is read from local JSONL/JSON session files; no ChatGPT subscription or quota API needed.
 - **Three CLIs in one panel** — Claude Code, Gemini CLI, Codex CLI usage aggregated by model.
-- **Usage overview + multi-period charts** — a hero card shows the selected period total, plus model-stacked charts for `today` / `7d` / `30d` / `90d` / `all`.
-- **Cleaner overview rows** — the Usage Overview lists the Top 5 models and folds the rest into `Other`, with best-effort provider/source labels on model rows.
+- **Today overview + per-CLI multi-period charts** — the Today Overview card aggregates today's tokens across all three CLIs; each per-CLI card has an in-panel segmented picker for `today` / `7d` / `30d` / `90d` / `all` with model-stacked charts.
+- **Cleaner overview rows** — the Today Overview lists the Top 5 models and folds the rest into `Other`, with best-effort provider/source labels on model rows.
 - **Clear token accounting** — Claude can be shown as `billable` or `raw`, and Codex/Gemini keep their reported-token semantics.
 - **Setup helper CLI** — `tokenused doctor`, `sync-plugins`, `install-config`, and `smoke` make installation and debugging repeatable.
 - **Auto-hide empty panels** — if you've never used a CLI (e.g. Gemini), its panel disappears automatically.
@@ -147,12 +147,13 @@ Prefer `tokenused install-config` when possible because it merges/upserts the To
 | File | Change | Why |
 |---|---|---|
 | `Package.swift` | `swift-tools-version: 6.3` → `6.2` | Lets Swift 6.2 toolchains build it |
-| `Sources/UsageBoardApp/DashboardView.swift` | Adds `store.refreshAll()`, `visiblePlugins`, an in-panel segmented period picker, and layout tweaks for long titles / badges | Refresh on every panel open; auto-hide CLIs with no data; switch periods without re-running plugins; avoid clipped model names and large numbers |
+| `Sources/UsageBoardApp/DashboardView.swift` | Adds `store.refreshAll()`, `visiblePlugins`, an in-panel segmented period picker (per-CLI cards only — Today Overview is today-only), enlarged badge rendering via `PlanTag(size: 14)`, and layout tweaks for long titles | Refresh on every panel open; auto-hide CLIs with no data; switch periods on per-CLI cards without re-running plugins; token-count badges are prominent; avoid clipped model names and large numbers |
 | `Sources/UsageBoardApp/UsageBoardStore.swift` | Preserves `iconURL`, `dimensions`, `defaultDimension`, and `dimensionOrder` in cached plugin state | Keeps dynamic icons and multi-period data after restart |
 | `Sources/UsageBoardCore/Models.swift` | Adds `dimensions`, `defaultDimension`, `dimensionOrder`, `iconURL`, and `UsageItem.trailingText` support across plugin output, snapshots, and cached state. `PluginSnapshot.hasNoUsageItems` now checks the **default dimension only** (with fallback to "all empty" if no default is set) | Lets plugins emit all periods at once; allows dynamic icon overrides; shows token counts in the right column; CLIs whose default period has no data auto-hide even when older periods still contain history |
 | `Sources/UsageBoardCore/PluginExecutor.swift` | Changes the default timeout from `15s` to `180s` and prefers plugin-emitted `iconURL` | Prevents cold scans of large directories from timing out; lets Usage Overview show the dominant provider icon |
 | `Sources/UsageBoardApp/DesignSystem/UBDesignTokens.swift` | `canvasBackground` switched from hardcoded RGB `(0.961, 0.961, 0.969)` to `Color(nsColor: .windowBackgroundColor)` | Card-gap canvas now follows light/dark mode instead of staying frozen light |
-| `Sources/UsageBoardApp/DesignSystem/PlanTag.swift` | Default badge palette (numeric labels like `3.55M` that aren't `PRO`/`PLUS`/…) switched from `gray.opacity(0.16)` + `.secondary` to `primary.opacity(0.10)` + `primary.opacity(0.85)` | Token-count badges stay readable in dark mode (light-grey bg + light-grey text was almost invisible) |
+| `Sources/UsageBoardApp/DesignSystem/PlanTag.swift` | Adds a `size` parameter (default `9.5` to keep upstream `PRO`/`PLUS` plan tags unchanged) with proportional padding / radius / `monospacedDigit()`; default badge palette switched from `gray.opacity(0.16)` + `.secondary` to `primary.opacity(0.10)` + `primary.opacity(0.85)` | Token-count badges can render at size `14` and stay readable in dark mode (light-grey bg + light-grey text was almost invisible) |
+| `Sources/UsageBoardApp/DesignSystem/BrandTile.swift` | When an icon image is loaded, lay a `Color.white` rounded fill behind it and bump inner padding; stroke opacity raised from `0.06` to `0.10` | Dark logos (e.g. OpenAI black PNG from lobe-icons) stay readable on dark popovers; coloured logos still look right on a clean white tile |
 
 If you'd rather use UsageBoard unmodified, the plugins still work — you just lose auto-hide, right-column token counts, in-panel period switching, dynamic icons, and the dark-mode tweaks.
 
@@ -177,14 +178,15 @@ The CLI helps with TokenUsed installation only. The UsageBoard patch remains the
 
 All four plugins read parameters from the UsageBoard plugin settings UI. Defaults work out of the box. Override only when needed.
 
-### Daily Overview (`daily-overview-plugin.py`)
+### Today Overview (`daily-overview-plugin.py`)
+
+Shows today's aggregated tokens across Claude / Gemini / Codex. **Today-only** — no in-panel period picker (use a per-CLI card if you want to switch periods).
 
 | Parameter | Default | Description |
 |---|---|---|
 | `CLAUDE_DIR` | `~/.claude/projects` | Where Claude Code stores session JSONL |
 | `GEMINI_DIR` | `~/.gemini/tmp` | Where Gemini CLI stores `session-*.json` |
 | `CODEX_DIR` | `~/.codex` | Codex CLI base dir (scans `sessions/` + `archived_sessions/`) |
-| `CHART_PERIOD` | `30d` | Default period: `today` / `7d` / `30d` / `90d` / `all` (12 months) — chart auto-buckets: day → week (90d) → month (all) |
 | `TOKEN_MODE` | `billable` | `billable` (input+output+cache_creation, matches Claude Code `/cost`) or `raw` (also includes `cache_read_input_tokens` hits — typically ~95% of the total) |
 
 ### Per-CLI plugins (`claude-code-usage-plugin.py`, `gemini-cli-usage-plugin.py`, `codex-local-usage-plugin.py`)
@@ -195,11 +197,11 @@ All four plugins read parameters from the UsageBoard plugin settings UI. Default
 | `STAT_PERIOD` | `30d` | Default period: `today` / `7d` / `30d` / `90d` / `all` |
 | `TOKEN_MODE` (Claude only) | `billable` | Same semantics as Daily Overview. Has no effect on Codex/Gemini panels (their reported tokens have no cache-read concept) |
 
-> **In-panel segmented picker**: every plugin emits a `dimensions` map with all five periods, so once data is in cache (~30s first run), `Today ↔ 7d ↔ 30d ↔ 90d ↔ All` switches instantly — no plugin re-spawn, no re-parse. The selection is persisted per-plugin via `@AppStorage("usageboard.period.<pluginID>")`.
+> **In-panel segmented picker**: each per-CLI plugin emits a `dimensions` map with all five periods, so once data is in cache (~30s first run), `Today ↔ 7d ↔ 30d ↔ 90d ↔ All` switches instantly — no plugin re-spawn, no re-parse. The selection is persisted per-plugin via `@AppStorage("usageboard.period.<pluginID>")`. Today Overview deliberately omits this picker and always shows today's data.
 
 > **Why two modes?** Claude's `usage` report counts every prompt-cache hit as `cache_read_input_tokens`. With heavy tool use, this can balloon the "raw" total to 100×+ what you actually billed. `billable` matches the four-component cost formula Anthropic uses (`input + output + cache_creation`); switching only re-projects the in-cache totals — no reparse.
 
-> **Overview rows**: the Daily Overview shows the Top 5 models for the selected period and folds the rest into `Other`. Model names are kept as specific as the source data allows, and rows include best-effort source/provider hints where available.
+> **Overview rows**: the Today Overview shows today's Top 5 models and folds the rest into `Other`. Model names are kept as specific as the source data allows, and rows include best-effort source/provider hints where available.
 
 To customise: open UsageBoard → menu-bar icon → gear → **Plugins** → click the plugin → adjust parameters. No restart needed.
 
