@@ -288,7 +288,7 @@ index ecfb7de..d551c4d 100644
      }
  
 diff --git a/Sources/UsageBoardCore/Models.swift b/Sources/UsageBoardCore/Models.swift
-index 9a141f8..4a19df6 100644
+index 9a141f8..7c419f5 100644
 --- a/Sources/UsageBoardCore/Models.swift
 +++ b/Sources/UsageBoardCore/Models.swift
 @@ -344,12 +344,43 @@ public struct PluginOutput: Decodable, Equatable, Sendable {
@@ -400,7 +400,7 @@ index 9a141f8..4a19df6 100644
      ) {
          self.id = id
          self.pluginName = pluginName
-@@ -546,6 +593,16 @@ public struct PluginSnapshot: Equatable, Identifiable, Sendable {
+@@ -546,6 +593,19 @@ public struct PluginSnapshot: Equatable, Identifiable, Sendable {
          self.badge = badge
          self.iconURL = iconURL
          self.chart = chart
@@ -411,13 +411,16 @@ index 9a141f8..4a19df6 100644
 +
 +    public var hasNoUsageItems: Bool {
 +        if let dimensions, !dimensions.isEmpty {
++            if let key = defaultDimension, let dim = dimensions[key] {
++                return dim.items.isEmpty
++            }
 +            return dimensions.values.allSatisfy { $0.items.isEmpty }
 +        }
 +        return items.isEmpty
      }
  }
  
-@@ -553,12 +610,29 @@ public struct PluginCachedState: Codable, Equatable, Sendable {
+@@ -553,12 +613,29 @@ public struct PluginCachedState: Codable, Equatable, Sendable {
      public var updatedAt: Date
      public var items: [UsageItem]
      public var badge: String?
