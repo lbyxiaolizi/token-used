@@ -149,10 +149,12 @@ sed "s|__HOME__|$HOME|g" examples/config.example.json > "$HOME/Library/Applicati
 | `Package.swift` | `swift-tools-version: 6.3` → `6.2` | 让 Swift 6.2 toolchain 能构建 |
 | `Sources/UsageBoardApp/DashboardView.swift` | `.onAppear` 加 `store.refreshAll()`，加 `visiblePlugins`，加面板内 segmented period picker，并调整长标题 / badge 布局 | 每次开面板自动刷新；空数据 CLI 自动隐藏；周期切换不重跑插件；长模型名和大数字不被截断 |
 | `Sources/UsageBoardApp/UsageBoardStore.swift` | 缓存读写保留 `iconURL` / `dimensions` / `defaultDimension` / `dimensionOrder` | 重启后仍能保留动态图标和多周期数据 |
-| `Sources/UsageBoardCore/Models.swift` | `PluginOutput` / `PluginSnapshot` / `PluginCachedState` 支持 `dimensions`、`defaultDimension`、`dimensionOrder`、`iconURL`，`UsageItem` 支持 `trailingText` | 让插件一次输出多周期数据；允许插件动态覆盖图标；右列显示 token 数 |
+| `Sources/UsageBoardCore/Models.swift` | `PluginOutput` / `PluginSnapshot` / `PluginCachedState` 支持 `dimensions`、`defaultDimension`、`dimensionOrder`、`iconURL`，`UsageItem` 支持 `trailingText`；`hasNoUsageItems` **只看默认维度** 是否为空（没有 default 时退回"所有维度都空"） | 让插件一次输出多周期数据；允许插件动态覆盖图标；右列显示 token 数；默认维度没有数据的 CLI 会被自动隐藏，即使更长周期里还残留历史用量 |
 | `Sources/UsageBoardCore/PluginExecutor.swift` | 默认 timeout `15s` → `180s`，并优先使用 plugin 输出的 `iconURL` | 冷启动扫描大目录时不易超时；用量总览可显示当前主导 provider 图标 |
+| `Sources/UsageBoardApp/DesignSystem/UBDesignTokens.swift` | `canvasBackground` 从写死 RGB `(0.961, 0.961, 0.969)` → `Color(nsColor: .windowBackgroundColor)` | 卡片之间的 canvas 背景跟随明暗模式，不再固定为浅色 |
+| `Sources/UsageBoardApp/DesignSystem/PlanTag.swift` | 默认 badge 配色（`3.55M` 这种数值，不属于 `PRO`/`PLUS`/… 枚举）从 `gray.opacity(0.16)` + `.secondary` → `primary.opacity(0.10)` + `primary.opacity(0.85)` | 暗色模式下 token 数 badge 仍然清晰可读（之前是浅灰底 + 浅灰字几乎隐形） |
 
-如果你坚持用未打补丁的 UsageBoard，插件依然能跑——只是失去自动隐藏、右列 token 数、面板内多周期切换和动态图标等增强。
+如果你坚持用未打补丁的 UsageBoard，插件依然能跑——只是失去自动隐藏、右列 token 数、面板内多周期切换、动态图标和暗色模式细节修复等增强。
 
 ---
 

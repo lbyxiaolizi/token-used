@@ -149,10 +149,12 @@ Prefer `tokenused install-config` when possible because it merges/upserts the To
 | `Package.swift` | `swift-tools-version: 6.3` → `6.2` | Lets Swift 6.2 toolchains build it |
 | `Sources/UsageBoardApp/DashboardView.swift` | Adds `store.refreshAll()`, `visiblePlugins`, an in-panel segmented period picker, and layout tweaks for long titles / badges | Refresh on every panel open; auto-hide CLIs with no data; switch periods without re-running plugins; avoid clipped model names and large numbers |
 | `Sources/UsageBoardApp/UsageBoardStore.swift` | Preserves `iconURL`, `dimensions`, `defaultDimension`, and `dimensionOrder` in cached plugin state | Keeps dynamic icons and multi-period data after restart |
-| `Sources/UsageBoardCore/Models.swift` | Adds `dimensions`, `defaultDimension`, `dimensionOrder`, `iconURL`, and `UsageItem.trailingText` support across plugin output, snapshots, and cached state | Lets plugins emit all periods at once; allows dynamic icon overrides; shows token counts in the right column |
+| `Sources/UsageBoardCore/Models.swift` | Adds `dimensions`, `defaultDimension`, `dimensionOrder`, `iconURL`, and `UsageItem.trailingText` support across plugin output, snapshots, and cached state. `PluginSnapshot.hasNoUsageItems` now checks the **default dimension only** (with fallback to "all empty" if no default is set) | Lets plugins emit all periods at once; allows dynamic icon overrides; shows token counts in the right column; CLIs whose default period has no data auto-hide even when older periods still contain history |
 | `Sources/UsageBoardCore/PluginExecutor.swift` | Changes the default timeout from `15s` to `180s` and prefers plugin-emitted `iconURL` | Prevents cold scans of large directories from timing out; lets Usage Overview show the dominant provider icon |
+| `Sources/UsageBoardApp/DesignSystem/UBDesignTokens.swift` | `canvasBackground` switched from hardcoded RGB `(0.961, 0.961, 0.969)` to `Color(nsColor: .windowBackgroundColor)` | Card-gap canvas now follows light/dark mode instead of staying frozen light |
+| `Sources/UsageBoardApp/DesignSystem/PlanTag.swift` | Default badge palette (numeric labels like `3.55M` that aren't `PRO`/`PLUS`/…) switched from `gray.opacity(0.16)` + `.secondary` to `primary.opacity(0.10)` + `primary.opacity(0.85)` | Token-count badges stay readable in dark mode (light-grey bg + light-grey text was almost invisible) |
 
-If you'd rather use UsageBoard unmodified, the plugins still work — you just lose auto-hide, right-column token counts, in-panel period switching, and dynamic icons.
+If you'd rather use UsageBoard unmodified, the plugins still work — you just lose auto-hide, right-column token counts, in-panel period switching, dynamic icons, and the dark-mode tweaks.
 
 ---
 
