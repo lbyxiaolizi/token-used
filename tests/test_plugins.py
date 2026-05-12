@@ -457,10 +457,13 @@ class PluginEndToEndTests(unittest.TestCase):
             "--usageboard-param", f"CLAUDE_DIR={self.paths['claude']}",
             "--usageboard-param", f"GEMINI_DIR={self.paths['gemini']}",
             "--usageboard-param", f"CODEX_DIR={self.paths['codex']}",
-            "--usageboard-param", "CHART_PERIOD=7d",
         ])
         self.assertEqual(out["schemaVersion"], 1)
-        self.assertEqual(len(out["chart"]["buckets"]), 7)
+        # daily-overview 只显示今日：无 chart / dimensions / defaultDimension
+        self.assertNotIn("chart", out)
+        self.assertNotIn("dimensions", out)
+        self.assertNotIn("defaultDimension", out)
+        self.assertNotIn("dimensionOrder", out)
         # 三家都有今日 token；overview 列表默认只展开 Top 5，其余合并为 Other。
         self.assertEqual(len(out["items"]), 7)
         self.assertEqual(out["items"][-1]["id"], "overview-other-models")
@@ -471,12 +474,9 @@ class PluginEndToEndTests(unittest.TestCase):
         self.assertTrue(any(name.startswith("Gemini ·") for name in model_names))
         self.assertTrue(any(name.startswith("OpenAI ·") for name in model_names))
         self.assertFalse(any("Claude · claude-" in name for name in model_names))
-        # 验 hero 有 trailingText（i18n 输出）
         self.assertIn("trailingText", out["items"][0])
         self.assertIn("openai.png", out.get("iconURL", ""))
         self.assertNotIn("providerTotals", out)
-        for dim in out["dimensions"].values():
-            self.assertNotIn("providerTotals", dim)
 
     def test_daily_overview_handles_missing_provider_dir(self):
         """某 provider 目录不存在不应让整个 daily-overview 崩。"""
@@ -484,7 +484,6 @@ class PluginEndToEndTests(unittest.TestCase):
             "--usageboard-param", f"CLAUDE_DIR={self.paths['claude']}",
             "--usageboard-param", "GEMINI_DIR=/nonexistent/path/xx",
             "--usageboard-param", f"CODEX_DIR={self.paths['codex']}",
-            "--usageboard-param", "CHART_PERIOD=7d",
         ])
         self.assertEqual(out["schemaVersion"], 1)
         self.assertGreater(len(out["items"]), 0)
@@ -512,21 +511,6 @@ class PluginEndToEndTests(unittest.TestCase):
         # 顶层 items / chart 等于 default dimension 的
         self.assertEqual(out["chart"]["bucketUnit"], "day")
         self.assertEqual(len(out["chart"]["buckets"]), 7)
-
-    def test_dimensions_daily_overview_90d_default(self):
-        out = self._run("daily-overview-plugin.py", [
-            "--usageboard-param", f"CLAUDE_DIR={self.paths['claude']}",
-            "--usageboard-param", f"GEMINI_DIR={self.paths['gemini']}",
-            "--usageboard-param", f"CODEX_DIR={self.paths['codex']}",
-            "--usageboard-param", "CHART_PERIOD=90d",
-        ])
-        self.assertEqual(out["defaultDimension"], "90d")
-        self.assertEqual(out["dimensions"]["90d"]["bucketUnit"], "week")
-        self.assertEqual(len(out["chart"]["buckets"]), 13)
-        # all 维度也存在
-        self.assertEqual(out["dimensions"]["all"]["bucketUnit"], "month")
-        self.assertEqual(len(out["dimensions"]["all"]["chart"]["buckets"]), 12)
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

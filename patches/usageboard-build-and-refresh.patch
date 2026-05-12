@@ -213,6 +213,34 @@ index 07757ee..ac1f626 100644
                  .font(.system(size: 11))
                  .monospacedDigit()
                  .lineLimit(1)
+diff --git a/Sources/UsageBoardApp/DesignSystem/BrandTile.swift b/Sources/UsageBoardApp/DesignSystem/BrandTile.swift
+index 072840d..9390019 100644
+--- a/Sources/UsageBoardApp/DesignSystem/BrandTile.swift
++++ b/Sources/UsageBoardApp/DesignSystem/BrandTile.swift
+@@ -26,11 +26,13 @@ struct BrandTile: View {
+         let radius = size * 0.27
+         ZStack {
+             if let image = loadedImage {
++                RoundedRectangle(cornerRadius: radius, style: .continuous)
++                    .fill(Color.white)
+                 Image(nsImage: image)
+                     .resizable()
+                     .interpolation(.high)
+                     .aspectRatio(contentMode: .fit)
+-                    .padding(size * 0.08)
++                    .padding(size * 0.12)
+             } else {
+                 RoundedRectangle(cornerRadius: radius, style: .continuous)
+                     .fill(fallbackGradient)
+@@ -43,7 +45,7 @@ struct BrandTile: View {
+         .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+         .overlay(
+             RoundedRectangle(cornerRadius: radius, style: .continuous)
+-                .stroke(Color.black.opacity(0.06), lineWidth: 0.5)
++                .stroke(Color.black.opacity(0.10), lineWidth: 0.5)
+         )
+         .task(id: iconURL) {
+             guard let urlString = iconURL, let url = URL(string: urlString) else {
 diff --git a/Sources/UsageBoardApp/DesignSystem/PlanTag.swift b/Sources/UsageBoardApp/DesignSystem/PlanTag.swift
 index b923f4a..868ddd4 100644
 --- a/Sources/UsageBoardApp/DesignSystem/PlanTag.swift
