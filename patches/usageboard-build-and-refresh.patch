@@ -204,6 +204,32 @@ index 07757ee..bd2f293 100644
                  .font(.system(size: 11))
                  .monospacedDigit()
                  .lineLimit(1)
+diff --git a/Sources/UsageBoardApp/DesignSystem/PlanTag.swift b/Sources/UsageBoardApp/DesignSystem/PlanTag.swift
+index b923f4a..24c8df7 100644
+--- a/Sources/UsageBoardApp/DesignSystem/PlanTag.swift
++++ b/Sources/UsageBoardApp/DesignSystem/PlanTag.swift
+@@ -29,7 +29,7 @@ struct PlanTag: View {
+         case "MAX", "MAX 5X", "MAX 20X":
+             return (Color.orange.opacity(0.18), Color.orange)
+         default:
+-            return (Color.gray.opacity(0.16), Color.secondary)
++            return (Color.primary.opacity(0.10), Color.primary.opacity(0.85))
+         }
+     }
+ 
+diff --git a/Sources/UsageBoardApp/DesignSystem/UBDesignTokens.swift b/Sources/UsageBoardApp/DesignSystem/UBDesignTokens.swift
+index a787db7..0861b5c 100644
+--- a/Sources/UsageBoardApp/DesignSystem/UBDesignTokens.swift
++++ b/Sources/UsageBoardApp/DesignSystem/UBDesignTokens.swift
+@@ -34,7 +34,7 @@ enum UB {
+ 
+     enum Canvas {
+         static let popoverBackground = Color(nsColor: .windowBackgroundColor)
+-        static let canvasBackground = Color(red: 0.961, green: 0.961, blue: 0.969)
++        static let canvasBackground = Color(nsColor: .windowBackgroundColor)
+         static let cardBackground = Color(nsColor: .textBackgroundColor)
+         static let separator = Color(nsColor: .separatorColor)
+     }
 diff --git a/Sources/UsageBoardApp/UsageBoardStore.swift b/Sources/UsageBoardApp/UsageBoardStore.swift
 index ecfb7de..d551c4d 100644
 --- a/Sources/UsageBoardApp/UsageBoardStore.swift
