@@ -26,10 +26,10 @@
 
 ## ✨ Features
 
-- **Zero remote API calls** — everything is read from local JSONL/JSON session files; no ChatGPT subscription or quota API needed.
+- **Local-first data** — token stats are read entirely from local JSONL/JSON session files; no ChatGPT subscription token needed. The only optional remote call is the Claude account quota lookup (on by default, disable with `SHOW_CLAUDE_QUOTA=off`).
+- **Claude account quota on top** — the overview card leads with your official account's 5-hour and weekly quota (with real reset times) plus the account email under the title; it auto-hides whenever OAuth credentials are unreadable (pure API key / relay setups).
 - **Three CLIs in one panel** — Claude Code, Gemini CLI, Codex CLI usage aggregated by model.
-- **Today overview + per-CLI multi-period charts** — the Today Overview card aggregates today's tokens across all three CLIs; each per-CLI card has an in-panel segmented picker for `today` / `7d` / `30d` / `90d` / `all` with model-stacked charts.
-- **Cleaner overview rows** — the Today Overview lists the Top 5 models and folds the rest into `Other`, with best-effort provider/source labels on model rows.
+- **Global multi-period filter + layered details** — one top segmented picker switches `today` / `7d` / `30d` / `90d` / `all`; Usage Overview shows one share row per provider (Claude/Gemini/Codex) with the period total in the title badge, while per-model details live in the per-CLI cards following the same period.
 - **Clear token accounting** — Claude can be shown as `billable` or `raw`, and Codex/Gemini keep their reported-token semantics.
 - **Setup helper CLI** — `tokenused doctor`, `sync-plugins`, `install-config`, and `smoke` make installation and debugging repeatable.
 - **Auto-hide empty panels** — if you've never used a CLI (e.g. Gemini), its panel disappears automatically.
@@ -147,10 +147,10 @@ Prefer `tokenused install-config` when possible because it merges/upserts the To
 | File | Change | Why |
 |---|---|---|
 | `Package.swift` | `swift-tools-version: 6.3` → `6.2` | Lets Swift 6.2 toolchains build it |
-| `Sources/UsageBoardApp/DashboardView.swift` | Adds `store.refreshAll()`, `visiblePlugins`, an in-panel segmented period picker (per-CLI cards only — Today Overview is today-only), enlarged badge rendering via `PlanTag(size: 14)`, and layout tweaks for long titles | Refresh on every panel open; auto-hide CLIs with no data; switch periods on per-CLI cards without re-running plugins; token-count badges are prominent; avoid clipped model names and large numbers |
-| `Sources/UsageBoardApp/UsageBoardStore.swift` | Preserves `iconURL`, `dimensions`, `defaultDimension`, and `dimensionOrder` in cached plugin state | Keeps dynamic icons and multi-period data after restart |
-| `Sources/UsageBoardCore/Models.swift` | Adds `dimensions`, `defaultDimension`, `dimensionOrder`, `iconURL`, and `UsageItem.trailingText` support across plugin output, snapshots, and cached state. `PluginSnapshot.hasNoUsageItems` now checks the **default dimension only** (with fallback to "all empty" if no default is set) | Lets plugins emit all periods at once; allows dynamic icon overrides; shows token counts in the right column; CLIs whose default period has no data auto-hide even when older periods still contain history |
-| `Sources/UsageBoardCore/PluginExecutor.swift` | Changes the default timeout from `15s` to `180s` and prefers plugin-emitted `iconURL` | Prevents cold scans of large directories from timing out; lets Usage Overview show the dominant provider icon |
+| `Sources/UsageBoardApp/DashboardView.swift` | Adds `store.refreshAll()`, `visiblePlugins`, a global top segmented period picker (`@AppStorage("usageboard.period.global")`) shared by every card with `dimensions`, enlarged badge rendering via `PlanTag(size: 14)`, and layout tweaks for long titles; the badge / card icon prefer the active dimension's `badge` / `iconURL`; renders `subtitle` (account email) under the title with click-to-copy and a hover tooltip showing the full value | Refresh on every panel open; auto-hide CLIs with no data; switch periods across overview and per-CLI cards without re-running plugins; token-count badges are prominent; badge and dominant-provider icon follow the selected period; account info is visible and copyable |
+| `Sources/UsageBoardApp/UsageBoardStore.swift` | Preserves `iconURL`, `dimensions`, `defaultDimension`, `dimensionOrder`, and `subtitle` in cached plugin state | Keeps dynamic icons, multi-period data, and account info after restart |
+| `Sources/UsageBoardCore/Models.swift` | Adds `dimensions`, `defaultDimension`, `dimensionOrder`, `iconURL`, `subtitle`, per-dimension `badge` / `iconURL`, and `UsageItem.trailingText` support across plugin output, snapshots, and cached state; percent labels cap at 99% until truly 100%. `PluginSnapshot.hasNoUsageItems` now checks the **default dimension only** (with fallback to "all empty" if no default is set) | Lets plugins emit all periods at once; allows dynamic icon/subtitle overrides; shows token counts in the right column; 99.8% no longer rounds up to a misleading 100%; CLIs whose default period has no data auto-hide even when older periods still contain history |
+| `Sources/UsageBoardCore/PluginExecutor.swift` | Changes the default timeout from `15s` to `180s`, prefers plugin-emitted `iconURL`, and passes through `subtitle` | Prevents cold scans of large directories from timing out; lets Usage Overview show the dominant provider icon and account email |
 | `Sources/UsageBoardApp/DesignSystem/UBDesignTokens.swift` | `canvasBackground` switched from hardcoded RGB `(0.961, 0.961, 0.969)` to `Color(nsColor: .windowBackgroundColor)` | Card-gap canvas now follows light/dark mode instead of staying frozen light |
 | `Sources/UsageBoardApp/DesignSystem/PlanTag.swift` | Adds a `size` parameter (default `9.5` to keep upstream `PRO`/`PLUS` plan tags unchanged) with proportional padding / radius / `monospacedDigit()`; default badge palette switched from `gray.opacity(0.16)` + `.secondary` to `primary.opacity(0.10)` + `primary.opacity(0.85)` | Token-count badges can render at size `14` and stay readable in dark mode (light-grey bg + light-grey text was almost invisible) |
 | `Sources/UsageBoardApp/DesignSystem/BrandTile.swift` | When an icon image is loaded, lay a `Color.white` rounded fill behind it and bump inner padding; stroke opacity raised from `0.06` to `0.10` | Dark logos (e.g. OpenAI black PNG from lobe-icons) stay readable on dark popovers; coloured logos still look right on a clean white tile |
@@ -178,15 +178,17 @@ The CLI helps with TokenUsed installation only. The UsageBoard patch remains the
 
 All four plugins read parameters from the UsageBoard plugin settings UI. Defaults work out of the box. Override only when needed.
 
-### Today Overview (`daily-overview-plugin.py`)
+### Usage Overview (`daily-overview-plugin.py`)
 
-Shows today's aggregated tokens across Claude / Gemini / Codex. **Today-only** — no in-panel period picker (use a per-CLI card if you want to switch periods).
+Aggregates Claude / Gemini / Codex usage by period. The plugin emits all five periods at once, and the top global picker controls both the overview and per-CLI cards.
 
 | Parameter | Default | Description |
 |---|---|---|
 | `CLAUDE_DIR` | `~/.claude/projects` | Where Claude Code stores session JSONL |
 | `GEMINI_DIR` | `~/.gemini/tmp` | Where Gemini CLI stores `session-*.json` |
 | `CODEX_DIR` | `~/.codex` | Codex CLI base dir (scans `sessions/` + `archived_sessions/`) |
+| `STAT_PERIOD` | `30d` | Default period: `today` / `7d` / `30d` / `90d` / `all` |
+| `SHOW_CLAUDE_QUOTA` | `on` | Shows the official Claude account's 5-hour/weekly quota and account email at the top of the overview card. Reads the local Claude Code OAuth credentials (Keychain or `~/.claude/.credentials.json`) and calls the official `oauth/usage` endpoint; results are cached for 120s with a 30-minute stale fallback on failure. Auto-hides entirely when credentials are unreadable or the API returns 401 (pure API key / relay setups). Set to `off` to disable this — the only — remote call |
 | `TOKEN_MODE` | `billable` | `billable` (input+output+cache_creation, matches Claude Code `/cost`) or `raw` (also includes `cache_read_input_tokens` hits — typically ~95% of the total) |
 
 ### Per-CLI plugins (`claude-code-usage-plugin.py`, `gemini-cli-usage-plugin.py`, `codex-local-usage-plugin.py`)
@@ -197,19 +199,19 @@ Shows today's aggregated tokens across Claude / Gemini / Codex. **Today-only** �
 | `STAT_PERIOD` | `30d` | Default period: `today` / `7d` / `30d` / `90d` / `all` |
 | `TOKEN_MODE` (Claude only) | `billable` | Same semantics as Daily Overview. Has no effect on Codex/Gemini panels (their reported tokens have no cache-read concept) |
 
-> **In-panel segmented picker**: each per-CLI plugin emits a `dimensions` map with all five periods, so once data is in cache (~30s first run), `Today ↔ 7d ↔ 30d ↔ 90d ↔ All` switches instantly — no plugin re-spawn, no re-parse. The selection is persisted per-plugin via `@AppStorage("usageboard.period.<pluginID>")`. Today Overview deliberately omits this picker and always shows today's data.
+> **Global segmented picker**: Usage Overview and each per-CLI plugin emit a `dimensions` map with all five periods, so once data is in cache (~30s first run), `Today ↔ 7d ↔ 30d ↔ 90d ↔ All` switches every card instantly — no plugin re-spawn, no re-parse. The selection is persisted globally via `@AppStorage("usageboard.period.global")`.
 
 > **Why two modes?** Claude's `usage` report counts every prompt-cache hit as `cache_read_input_tokens`. With heavy tool use, this can balloon the "raw" total to 100×+ what you actually billed. `billable` matches the four-component cost formula Anthropic uses (`input + output + cache_creation`); switching only re-projects the in-cache totals — no reparse.
 
-> **Overview rows**: the Today Overview shows today's Top 5 models and folds the rest into `Other`. Model names are kept as specific as the source data allows, and rows include best-effort source/provider hints where available.
+> **Overview layering**: the overview card leads with the Claude account quota block (optional), followed by one share row per provider (Claude / Gemini / Codex) with the period total in the title badge; per-model details live in the per-CLI cards. The card icon shows the period's dominant provider and follows the period switch.
 
 To customise: open UsageBoard → menu-bar icon → gear → **Plugins** → click the plugin → adjust parameters. No restart needed.
 
 ### Progress-bar colour semantics
 
-The four plugins use **different** colour rules on purpose:
-- **Daily overview** — red/orange/blue based on each model's share of today's total (≥50% red, ≥25% orange, otherwise blue)
-- **Per-CLI** — red/orange/blue based on today's tokens vs the peak day in the period (≥100% red = today broke the peak, ≥80% orange, otherwise blue)
+Colour carries quota-alert semantics only, to avoid misreads:
+- **Claude quota rows** — blue < 60%, orange ≥ 60%, red ≥ 85%, with the real reset time in the right column
+- **Provider / model / total rows** — always neutral blue (they show shares, not alerts), with token counts in the right column
 
 ---
 
@@ -220,12 +222,12 @@ TokenUsed/
 ├── bin/
 │   └── tokenused                         # Install/debug helper CLI
 ├── plugins/                            # UsageBoard Python plugins
-│   ├── daily-overview-plugin.py        # ⭐ Today overview (3 CLIs aggregated, per-model rows + 7-day bar chart)
+│   ├── daily-overview-plugin.py        # ⭐ Usage overview (3 CLIs aggregated by period and model)
 │   ├── claude-code-usage-plugin.py     # Claude Code single-CLI panel
 │   ├── gemini-cli-usage-plugin.py      # Gemini CLI single-CLI panel
 │   ├── codex-local-usage-plugin.py     # Codex CLI single-CLI panel
 │   ├── _shared.py                      # Compatibility facade imported by plugin entrypoints
-│   └── _shared_*.py                    # Private shared modules (core/cache/parsers/builders)
+│   └── _shared_*.py                    # Private shared modules (core/cache/parsers/builders/quota)
 ├── patches/
 │   └── usageboard-build-and-refresh.patch  # UsageBoard UI / schema / executor enhancements
 ├── examples/

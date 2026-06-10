@@ -9,10 +9,18 @@ index 36fecf5..e4d6e73 100644
  
  import PackageDescription
 diff --git a/Sources/UsageBoardApp/DashboardView.swift b/Sources/UsageBoardApp/DashboardView.swift
-index 07757ee..ac1f626 100644
+index 07757ee..3fc228c 100644
 --- a/Sources/UsageBoardApp/DashboardView.swift
 +++ b/Sources/UsageBoardApp/DashboardView.swift
-@@ -14,6 +14,16 @@ struct DashboardView: View {
+@@ -5,6 +5,7 @@ import UsageBoardCore
+ struct DashboardView: View {
+     @ObservedObject var store: UsageBoardStore
+     var mode: DisplayMode
++    @AppStorage("usageboard.period.global") private var selectedDimensionKey = "30d"
+ 
+     private var maxHeight: CGFloat {
+         (NSScreen.main?.visibleFrame.height ?? 800) * 2 / 3
+@@ -14,10 +15,35 @@ struct DashboardView: View {
          store.configuration.plugins.filter(\.enabled)
      }
  
@@ -29,16 +37,40 @@ index 07757ee..ac1f626 100644
      private var strings: AppLocalization {
          AppLocalization(language: store.activeLanguage)
      }
-@@ -27,7 +37,7 @@ struct DashboardView: View {
+ 
++    private var availableDimensionKeys: [String] {
++        var seen = Set<String>()
++        var keys: [String] = []
++        for plugin in visiblePlugins {
++            let snapshot = store.snapshot(for: plugin)
++            guard let dimensions = snapshot.dimensions, !dimensions.isEmpty else { continue }
++            let ordered = snapshot.dimensionOrder?.filter { dimensions[$0] != nil } ?? dimensions.keys.sorted()
++            for key in ordered where !seen.contains(key) {
++                seen.insert(key)
++                keys.append(key)
++            }
++        }
++        return keys
++    }
++
+     var body: some View {
+         Group {
+             if enabledPlugins.isEmpty {
+@@ -27,10 +53,12 @@ struct DashboardView: View {
                  case .grouped:
                      MeasuredScrollView(maxHeight: maxHeight) {
                          VStack(spacing: 8) {
 -                            ForEach(enabledPlugins) { plugin in
++                            globalDimensionPicker
 +                            ForEach(visiblePlugins) { plugin in
                                  PluginGroupView(
                                      snapshot: store.snapshot(for: plugin),
                                      language: store.activeLanguage,
-@@ -45,7 +55,7 @@ struct DashboardView: View {
++                                    selectedDimensionKey: selectedDimensionKey,
+                                     nextRefreshAt: store.nextRefreshAt[plugin.id]
+                                 ) {
+                                     store.refresh(pluginID: plugin.id, force: true)
+@@ -45,7 +73,7 @@ struct DashboardView: View {
                          ScrollViewReader { proxy in
                              ScrollView(.horizontal, showsIndicators: false) {
                                  HStack(spacing: 6) {
@@ -47,7 +79,7 @@ index 07757ee..ac1f626 100644
                                          Button {
                                              store.selectedTabID = plugin.id
                                          } label: {
-@@ -72,7 +82,7 @@ struct DashboardView: View {
+@@ -72,18 +100,22 @@ struct DashboardView: View {
                              .onChange(of: store.selectedTabID) { _ in
                                  scrollToSelectedTab(with: proxy)
                              }
@@ -56,7 +88,28 @@ index 07757ee..ac1f626 100644
                                  scrollToSelectedTab(with: proxy)
                              }
                          }
-@@ -93,8 +103,9 @@ struct DashboardView: View {
+                         Divider()
+                         if let plugin = selectedPlugin {
+-                            PluginGroupView(
+-                                snapshot: store.snapshot(for: plugin),
+-                                language: store.activeLanguage,
+-                                nextRefreshAt: store.nextRefreshAt[plugin.id]
+-                            ) {
+-                                store.refresh(pluginID: plugin.id, force: true)
++                            VStack(spacing: 8) {
++                                globalDimensionPicker
++                                PluginGroupView(
++                                    snapshot: store.snapshot(for: plugin),
++                                    language: store.activeLanguage,
++                                    selectedDimensionKey: selectedDimensionKey,
++                                    nextRefreshAt: store.nextRefreshAt[plugin.id]
++                                ) {
++                                    store.refresh(pluginID: plugin.id, force: true)
++                                }
+                             }
+                             .padding(10)
+                         }
+@@ -93,8 +125,9 @@ struct DashboardView: View {
          }
          .onAppear {
              ensureSelectedTab()
@@ -67,7 +120,7 @@ index 07757ee..ac1f626 100644
              ensureSelectedTab()
          }
          .toolbar {
-@@ -109,22 +120,22 @@ struct DashboardView: View {
+@@ -109,22 +142,22 @@ struct DashboardView: View {
  
      private var selectedPlugin: PluginConfiguration? {
          if let selectedTabID = store.selectedTabID,
@@ -95,29 +148,56 @@ index 07757ee..ac1f626 100644
      }
  
      private func scrollToSelectedTab(with proxy: ScrollViewProxy) {
-@@ -227,15 +238,72 @@ struct PluginGroupView: View {
+@@ -133,6 +166,31 @@ struct DashboardView: View {
+             proxy.scrollTo(selectedTabID, anchor: .center)
+         }
+     }
++
++    @ViewBuilder
++    private var globalDimensionPicker: some View {
++        let keys = availableDimensionKeys
++        if !keys.isEmpty {
++            Picker("", selection: $selectedDimensionKey) {
++                ForEach(keys, id: \.self) { key in
++                    Text(dimensionLabel(for: key)).tag(key)
++                }
++            }
++            .pickerStyle(.segmented)
++            .controlSize(.small)
++            .labelsHidden()
++        }
++    }
++
++    private func dimensionLabel(for key: String) -> String {
++        for plugin in visiblePlugins {
++            let snapshot = store.snapshot(for: plugin)
++            if let label = snapshot.dimensions?[key]?.label {
++                return label
++            }
++        }
++        return key
++    }
+ }
+ 
+ struct EmptyPluginsView: View {
+@@ -224,13 +282,54 @@ private struct ContentHeightKey: PreferenceKey {
+ struct PluginGroupView: View {
+     var snapshot: PluginSnapshot
+     var language: AppLanguage
++    var selectedDimensionKey: String?
      var nextRefreshAt: Date?
      var onRefresh: (() -> Void)?
      @State private var isChartExpanded = false
-+    @AppStorage private var selectedDimensionKey: String
++    @State private var didCopySubtitle = false
      private var strings: AppLocalization {
          AppLocalization(language: language)
      }
  
-+    init(snapshot: PluginSnapshot, language: AppLanguage, nextRefreshAt: Date? = nil, onRefresh: (() -> Void)? = nil) {
-+        self.snapshot = snapshot
-+        self.language = language
-+        self.nextRefreshAt = nextRefreshAt
-+        self.onRefresh = onRefresh
-+        self._selectedDimensionKey = AppStorage(
-+            wrappedValue: snapshot.defaultDimension ?? "",
-+            "usageboard.period.\(snapshot.id.uuidString)"
-+        )
-+    }
-+
 +    private var activeDimensionKey: String? {
 +        guard let dimensions = snapshot.dimensions, !dimensions.isEmpty else { return nil }
-+        if dimensions[selectedDimensionKey] != nil { return selectedDimensionKey }
++        if let selectedDimensionKey, dimensions[selectedDimensionKey] != nil {
++            return selectedDimensionKey
++        }
 +        if let defaultDimension = snapshot.defaultDimension, dimensions[defaultDimension] != nil {
 +            return defaultDimension
 +        }
@@ -138,37 +218,24 @@ index 07757ee..ac1f626 100644
 +        return snapshot.chart
 +    }
 +
-+    private var orderedDimensionKeys: [String] {
-+        guard let dimensions = snapshot.dimensions, !dimensions.isEmpty else { return [] }
-+        if let order = snapshot.dimensionOrder, !order.isEmpty {
-+            return order.filter { dimensions[$0] != nil }
++    private var activeBadge: String? {
++        if let key = activeDimensionKey, let badge = snapshot.dimensions?[key]?.badge {
++            return badge
 +        }
-+        return dimensions.keys.sorted()
++        return activeItems.first?.trailingText ?? snapshot.badge
++    }
++
++    private var activeIconURL: String? {
++        if let key = activeDimensionKey, let icon = snapshot.dimensions?[key]?.iconURL {
++            return icon
++        }
++        return snapshot.iconURL
 +    }
 +
      var body: some View {
          VStack(alignment: .leading, spacing: 0) {
              VStack(alignment: .leading, spacing: 10) {
-                 header
- 
-+                if !orderedDimensionKeys.isEmpty {
-+                    Picker("", selection: Binding(
-+                        get: { activeDimensionKey ?? "" },
-+                        set: { selectedDimensionKey = $0 }
-+                    )) {
-+                        ForEach(orderedDimensionKeys, id: \.self) { key in
-+                            Text(snapshot.dimensions?[key]?.label ?? key).tag(key)
-+                        }
-+                    }
-+                    .pickerStyle(.segmented)
-+                    .controlSize(.small)
-+                    .labelsHidden()
-+                }
-+
-                 Divider()
- 
-                 if case .failed(let message) = snapshot.state {
-@@ -251,7 +319,7 @@ struct PluginGroupView: View {
+@@ -251,7 +350,7 @@ struct PluginGroupView: View {
                              .textSelection(.enabled)
                      }
                      .padding(.vertical, 8)
@@ -177,7 +244,7 @@ index 07757ee..ac1f626 100644
                      Text(strings.text(.noUsageData))
                          .font(.callout)
                          .foregroundStyle(.secondary)
-@@ -259,7 +327,7 @@ struct PluginGroupView: View {
+@@ -259,7 +358,7 @@ struct PluginGroupView: View {
                          .padding(.vertical, 18)
                  } else {
                      VStack(spacing: 8) {
@@ -186,25 +253,69 @@ index 07757ee..ac1f626 100644
                              UsageItemRow(item: item, language: language)
                          }
                      }
-@@ -269,7 +337,7 @@ struct PluginGroupView: View {
+@@ -267,9 +366,9 @@ struct PluginGroupView: View {
+             }
+             .padding(.horizontal, 12)
              .padding(.top, 10)
-             .padding(.bottom, snapshot.chart == nil ? 10 : 0)
+-            .padding(.bottom, snapshot.chart == nil ? 10 : 0)
++            .padding(.bottom, activeChart == nil ? 10 : 0)
  
 -            if let chart = snapshot.chart {
 +            if let chart = activeChart {
                  VStack(spacing: 0) {
                      if isChartExpanded {
                          TokenUsageChartView(chart: chart, language: language)
-@@ -311,7 +379,7 @@ struct PluginGroupView: View {
-                 .font(UB.Font.cardTitle)
-                 .lineLimit(1)
-             if let badge = snapshot.badge {
+@@ -306,12 +405,36 @@ struct PluginGroupView: View {
+ 
+     private var header: some View {
+         HStack(spacing: 8) {
+-            BrandTile(iconURL: snapshot.iconURL, fallbackName: snapshot.displayName, size: 22)
+-            Text(snapshot.displayName)
+-                .font(UB.Font.cardTitle)
+-                .lineLimit(1)
+-            if let badge = snapshot.badge {
 -                PlanTag(text: badge)
++            BrandTile(iconURL: activeIconURL, fallbackName: snapshot.displayName, size: 22)
++            if let subtitle = snapshot.subtitle, !subtitle.isEmpty {
++                VStack(alignment: .leading, spacing: 1) {
++                    Text(snapshot.displayName)
++                        .font(UB.Font.cardTitle)
++                        .lineLimit(1)
++                    Text(didCopySubtitle ? (language == .en ? "Copied" : "已复制") : subtitle)
++                        .font(.system(size: 10))
++                        .foregroundStyle(didCopySubtitle ? Color.accentColor : Color.secondary)
++                        .lineLimit(1)
++                        .truncationMode(.middle)
++                        .contentShape(Rectangle())
++                        .onTapGesture {
++                            NSPasteboard.general.clearContents()
++                            NSPasteboard.general.setString(subtitle, forType: .string)
++                            didCopySubtitle = true
++                            Task {
++                                try? await Task.sleep(nanoseconds: 1_200_000_000)
++                                didCopySubtitle = false
++                            }
++                        }
++                        .help(language == .en ? "\(subtitle) (click to copy)" : "\(subtitle)（点击复制）")
++                }
++            } else {
++                Text(snapshot.displayName)
++                    .font(UB.Font.cardTitle)
++                    .lineLimit(1)
++            }
++            if let badge = activeBadge {
 +                PlanTag(text: badge, size: 14)
              }
              if case .failed = snapshot.state {
                  Text(language == .en ? "Error" : "错误")
-@@ -370,7 +438,7 @@ struct UsageItemRow: View {
+@@ -364,13 +487,13 @@ struct UsageItemRow: View {
+                 .foregroundStyle(.secondary)
+                 .lineLimit(1)
+                 .truncationMode(.tail)
+-                .frame(width: 92, alignment: .leading)
++                .frame(width: 122, alignment: .leading)
+ 
+             UsageProgressBar(value: item.progress, label: item.displayValue(), color: item.color)
                  .frame(height: 18)
                  .layoutPriority(1)
  
@@ -213,6 +324,152 @@ index 07757ee..ac1f626 100644
                  .font(.system(size: 11))
                  .monospacedDigit()
                  .lineLimit(1)
+@@ -413,7 +536,8 @@ struct TokenUsageChartView: View {
+     private var visibleSeries: [TokenChartSeries] {
+         let filtered = series.filter { $0.values.contains(where: { $0 > 0 }) }
+         guard let selectedSeries else { return filtered }
+-        return filtered.filter { $0.name == selectedSeries }
++        let selected = filtered.filter { $0.name == selectedSeries }
++        return selected.isEmpty ? filtered : selected
+     }
+ 
+     private var modelSummaries: [TokenModelSummary] {
+@@ -481,20 +605,28 @@ struct TokenUsageChartView: View {
+                     }
+                 }
+ 
+-                GeometryReader { viewport in
+-                    ScrollView(.horizontal, showsIndicators: false) {
+-                        let resolvedWidth = resolvedChartWidth(for: viewport.size.width)
+-                        TokenLineChartPlot(
+-                            buckets: chart.buckets,
+-                            series: visibleSeries,
+-                            maxValue: max(visibleSeries.flatMap(\.values).max() ?? 0, 1),
+-                            visibleWidth: viewport.size.width
+-                        )
+-                        .frame(width: resolvedWidth, height: 170)
++                if chart.prefersSingleBucketSummary, let bucket = chart.buckets.first {
++                    TokenSingleBucketChartView(
++                        bucket: bucket,
++                        series: visibleSeries,
++                        maxValue: max(visibleSeries.flatMap(\.values).max() ?? 0, 1)
++                    )
++                } else {
++                    GeometryReader { viewport in
++                        ScrollView(.horizontal, showsIndicators: false) {
++                            let resolvedWidth = resolvedChartWidth(for: viewport.size.width)
++                            TokenLineChartPlot(
++                                buckets: chart.buckets,
++                                series: visibleSeries,
++                                maxValue: max(visibleSeries.flatMap(\.values).max() ?? 0, 1),
++                                visibleWidth: viewport.size.width
++                            )
++                            .frame(width: resolvedWidth, height: 170)
++                        }
++                        .coordinateSpace(name: "TokenChartScroll")
+                     }
+-                    .coordinateSpace(name: "TokenChartScroll")
++                    .frame(height: 170)
+                 }
+-                .frame(height: 170)
+             } else {
+                 Text(chart.message ?? strings.text(.noStatsData))
+                     .font(.caption)
+@@ -537,6 +669,94 @@ struct TokenUsageChartView: View {
+     }
+ }
+ 
++struct TokenSingleBucketChartView: View {
++    var bucket: PluginChartBucket
++    var series: [TokenChartSeries]
++    var maxValue: Double
++
++    private var rows: [TokenChartSeries] {
++        let nonzero = series.filter { ($0.values.first ?? 0) > 0 }
++        if nonzero.count > 1 {
++            return Array(nonzero.dropFirst())
++        }
++        return nonzero
++    }
++
++    var body: some View {
++        VStack(alignment: .leading, spacing: 10) {
++            HStack(alignment: .firstTextBaseline) {
++                Text(bucket.label)
++                    .font(.caption)
++                    .foregroundStyle(.secondary)
++                    .lineLimit(1)
++                Spacer(minLength: 8)
++                Text(formattedTokenNumber(bucket.total).compact)
++                    .font(.caption)
++                    .foregroundStyle(.primary)
++                    .monospacedDigit()
++            }
++
++            VStack(spacing: 8) {
++                ForEach(rows) { item in
++                    TokenSingleBucketBarRow(
++                        title: item.name,
++                        value: item.values.first ?? 0,
++                        maxValue: maxValue,
++                        color: item.color
++                    )
++                }
++            }
++        }
++        .padding(10)
++        .background(
++            RoundedRectangle(cornerRadius: 6, style: .continuous)
++                .fill(Color(nsColor: .textBackgroundColor).opacity(0.55))
++        )
++    }
++}
++
++struct TokenSingleBucketBarRow: View {
++    var title: String
++    var value: Double
++    var maxValue: Double
++    var color: Color
++
++    private var widthRatio: CGFloat {
++        guard maxValue > 0 else { return 0 }
++        return CGFloat(max(0, min(value / maxValue, 1)))
++    }
++
++    var body: some View {
++        VStack(alignment: .leading, spacing: 5) {
++            HStack(spacing: 6) {
++                Circle()
++                    .fill(color)
++                    .frame(width: 7, height: 7)
++                Text(title)
++                    .font(.caption)
++                    .foregroundStyle(.secondary)
++                    .lineLimit(1)
++                Spacer(minLength: 8)
++                Text(formattedTokenNumber(value).compact)
++                    .font(.caption)
++                    .foregroundStyle(.primary)
++                    .monospacedDigit()
++            }
++
++            GeometryReader { proxy in
++                ZStack(alignment: .leading) {
++                    Capsule()
++                        .fill(Color(nsColor: .separatorColor).opacity(0.45))
++                    Capsule()
++                        .fill(color.opacity(0.72))
++                        .frame(width: max(widthRatio * proxy.size.width, value > 0 ? 4 : 0))
++                }
++            }
++            .frame(height: 6)
++        }
++    }
++}
++
+ struct TokenModelSummary: Identifiable {
+     var name: String
+     var total: Double
 diff --git a/Sources/UsageBoardApp/DesignSystem/BrandTile.swift b/Sources/UsageBoardApp/DesignSystem/BrandTile.swift
 index 072840d..9390019 100644
 --- a/Sources/UsageBoardApp/DesignSystem/BrandTile.swift
@@ -291,10 +548,20 @@ index a787db7..0861b5c 100644
          static let separator = Color(nsColor: .separatorColor)
      }
 diff --git a/Sources/UsageBoardApp/UsageBoardStore.swift b/Sources/UsageBoardApp/UsageBoardStore.swift
-index ecfb7de..d551c4d 100644
+index ecfb7de..81e1281 100644
 --- a/Sources/UsageBoardApp/UsageBoardStore.swift
 +++ b/Sources/UsageBoardApp/UsageBoardStore.swift
-@@ -283,7 +283,11 @@ final class UsageBoardStore: ObservableObject {
+@@ -254,7 +254,8 @@ final class UsageBoardStore: ObservableObject {
+             items: snapshots[plugin.id]?.items ?? [],
+             updatedAt: snapshots[plugin.id]?.updatedAt,
+             badge: snapshots[plugin.id]?.badge,
+-            chart: snapshots[plugin.id]?.chart
++            chart: snapshots[plugin.id]?.chart,
++            subtitle: snapshots[plugin.id]?.subtitle
+         )
+ 
+         let executor = executor
+@@ -283,7 +284,12 @@ final class UsageBoardStore: ObservableObject {
                      updatedAt: updatedAt,
                      items: snapshot.items,
                      badge: snapshot.badge,
@@ -303,11 +570,12 @@ index ecfb7de..d551c4d 100644
 +                    chart: snapshot.chart,
 +                    dimensions: snapshot.dimensions,
 +                    defaultDimension: snapshot.defaultDimension,
-+                    dimensionOrder: snapshot.dimensionOrder
++                    dimensionOrder: snapshot.dimensionOrder,
++                    subtitle: snapshot.subtitle
                  )
                  let stateID = current.stateID
                  Task.detached(priority: .utility) {
-@@ -386,7 +390,11 @@ final class UsageBoardStore: ObservableObject {
+@@ -386,7 +392,12 @@ final class UsageBoardStore: ObservableObject {
                  items: cached.items,
                  updatedAt: cached.updatedAt,
                  badge: cached.badge,
@@ -316,11 +584,12 @@ index ecfb7de..d551c4d 100644
 +                chart: cached.chart,
 +                dimensions: cached.dimensions,
 +                defaultDimension: cached.defaultDimension,
-+                dimensionOrder: cached.dimensionOrder
++                dimensionOrder: cached.dimensionOrder,
++                subtitle: cached.subtitle
              )
          }
      }
-@@ -538,7 +546,11 @@ final class UsageBoardStore: ObservableObject {
+@@ -538,7 +549,12 @@ final class UsageBoardStore: ObservableObject {
          items: [UsageItem] = [],
          updatedAt: Date? = nil,
          badge: String? = nil,
@@ -329,11 +598,12 @@ index ecfb7de..d551c4d 100644
 +        chart: PluginChart? = nil,
 +        dimensions: [String: PluginDimension]? = nil,
 +        defaultDimension: String? = nil,
-+        dimensionOrder: [String]? = nil
++        dimensionOrder: [String]? = nil,
++        subtitle: String? = nil
      ) -> PluginSnapshot {
          PluginSnapshot(
              id: plugin.id,
-@@ -548,8 +560,11 @@ final class UsageBoardStore: ObservableObject {
+@@ -548,8 +564,12 @@ final class UsageBoardStore: ObservableObject {
              items: items,
              updatedAt: updatedAt,
              badge: badge,
@@ -343,15 +613,16 @@ index ecfb7de..d551c4d 100644
 +            chart: chart,
 +            dimensions: dimensions,
 +            defaultDimension: defaultDimension,
-+            dimensionOrder: dimensionOrder
++            dimensionOrder: dimensionOrder,
++            subtitle: subtitle
          )
      }
  
 diff --git a/Sources/UsageBoardCore/Models.swift b/Sources/UsageBoardCore/Models.swift
-index 9a141f8..7c419f5 100644
+index 9a141f8..30588fd 100644
 --- a/Sources/UsageBoardCore/Models.swift
 +++ b/Sources/UsageBoardCore/Models.swift
-@@ -344,12 +344,43 @@ public struct PluginOutput: Decodable, Equatable, Sendable {
+@@ -344,13 +344,51 @@ public struct PluginOutput: Decodable, Equatable, Sendable {
      public var updatedAt: Date
      public var items: [UsageItem]
      public var badge: String?
@@ -360,6 +631,7 @@ index 9a141f8..7c419f5 100644
 +    public var dimensions: [String: PluginDimension]?
 +    public var defaultDimension: String?
 +    public var dimensionOrder: [String]?
++    public var subtitle: String?
  
 -    public init(updatedAt: Date, items: [UsageItem], badge: String? = nil, chart: PluginChart? = nil) {
 +    public init(
@@ -370,16 +642,18 @@ index 9a141f8..7c419f5 100644
 +        chart: PluginChart? = nil,
 +        dimensions: [String: PluginDimension]? = nil,
 +        defaultDimension: String? = nil,
-+        dimensionOrder: [String]? = nil
++        dimensionOrder: [String]? = nil,
++        subtitle: String? = nil
 +    ) {
          self.updatedAt = updatedAt
          self.items = items
          self.badge = badge
 +        self.iconURL = iconURL
-+        self.chart = chart
+         self.chart = chart
 +        self.dimensions = dimensions
 +        self.defaultDimension = defaultDimension
 +        self.dimensionOrder = dimensionOrder
++        self.subtitle = subtitle
 +    }
 +}
 +
@@ -388,15 +662,31 @@ index 9a141f8..7c419f5 100644
 +    public var bucketUnit: String
 +    public var items: [UsageItem]
 +    public var chart: PluginChart?
++    public var badge: String?
++    public var iconURL: String?
 +
-+    public init(label: String, bucketUnit: String, items: [UsageItem], chart: PluginChart? = nil) {
++    public init(label: String, bucketUnit: String, items: [UsageItem], chart: PluginChart? = nil, badge: String? = nil, iconURL: String? = nil) {
 +        self.label = label
 +        self.bucketUnit = bucketUnit
 +        self.items = items
-         self.chart = chart
++        self.chart = chart
++        self.badge = badge
++        self.iconURL = iconURL
      }
  }
-@@ -413,6 +444,7 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
+ 
+@@ -374,6 +412,10 @@ public struct PluginChart: Codable, Equatable, Sendable {
+         self.buckets = buckets
+         self.message = message
+     }
++
++    public var prefersSingleBucketSummary: Bool {
++        buckets.count == 1 && buckets[0].segments.contains { $0.tokens > 0 }
++    }
+ }
+ 
+ public struct PluginChartBucket: Codable, Equatable, Identifiable, Sendable {
+@@ -413,6 +455,7 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
      public var resetAt: Date?
      public var status: UsageStatus
      public var color: String?
@@ -404,7 +694,7 @@ index 9a141f8..7c419f5 100644
  
      public init(
          id: String,
-@@ -422,7 +454,8 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
+@@ -422,7 +465,8 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
          displayStyle: UsageDisplayStyle,
          resetAt: Date? = nil,
          status: UsageStatus = .unknown,
@@ -414,7 +704,7 @@ index 9a141f8..7c419f5 100644
      ) {
          self.id = id
          self.name = name
-@@ -432,6 +465,7 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
+@@ -432,6 +476,7 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
          self.resetAt = resetAt
          self.status = status
          self.color = color
@@ -422,14 +712,16 @@ index 9a141f8..7c419f5 100644
      }
  
      public var progress: Double {
-@@ -442,7 +476,14 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
+@@ -442,7 +487,16 @@ public struct UsageItem: Codable, Equatable, Identifiable, Sendable {
      public func displayValue() -> String {
          switch displayStyle {
          case .percent:
 -            return "\(Int((progress * 100).rounded()))%"
 +            let pct = progress * 100
 +            if pct >= 10 || pct == 0 {
-+                return "\(Int(pct.rounded()))%"
++                // 未到 100% 时不因四舍五入显示成 100%（99.8% → 99%）
++                let rounded = pct < 100 ? min(Int(pct.rounded()), 99) : 100
++                return "\(rounded)%"
 +            }
 +            if pct >= 1 {
 +                return String(format: "%.1f%%", pct)
@@ -438,17 +730,18 @@ index 9a141f8..7c419f5 100644
          case .ratio:
              return "\(UsageItem.formatNumber(used)) / \(UsageItem.formatNumber(limit))"
          }
-@@ -525,6 +566,9 @@ public struct PluginSnapshot: Equatable, Identifiable, Sendable {
+@@ -525,6 +579,10 @@ public struct PluginSnapshot: Equatable, Identifiable, Sendable {
      public var badge: String?
      public var iconURL: String?
      public var chart: PluginChart?
 +    public var dimensions: [String: PluginDimension]?
 +    public var defaultDimension: String?
 +    public var dimensionOrder: [String]?
++    public var subtitle: String?
  
      public init(
          id: UUID,
-@@ -535,7 +579,10 @@ public struct PluginSnapshot: Equatable, Identifiable, Sendable {
+@@ -535,7 +593,11 @@ public struct PluginSnapshot: Equatable, Identifiable, Sendable {
          updatedAt: Date? = nil,
          badge: String? = nil,
          iconURL: String? = nil,
@@ -456,17 +749,19 @@ index 9a141f8..7c419f5 100644
 +        chart: PluginChart? = nil,
 +        dimensions: [String: PluginDimension]? = nil,
 +        defaultDimension: String? = nil,
-+        dimensionOrder: [String]? = nil
++        dimensionOrder: [String]? = nil,
++        subtitle: String? = nil
      ) {
          self.id = id
          self.pluginName = pluginName
-@@ -546,6 +593,19 @@ public struct PluginSnapshot: Equatable, Identifiable, Sendable {
+@@ -546,6 +608,20 @@ public struct PluginSnapshot: Equatable, Identifiable, Sendable {
          self.badge = badge
          self.iconURL = iconURL
          self.chart = chart
 +        self.dimensions = dimensions
 +        self.defaultDimension = defaultDimension
 +        self.dimensionOrder = dimensionOrder
++        self.subtitle = subtitle
 +    }
 +
 +    public var hasNoUsageItems: Bool {
@@ -480,7 +775,7 @@ index 9a141f8..7c419f5 100644
      }
  }
  
-@@ -553,12 +613,29 @@ public struct PluginCachedState: Codable, Equatable, Sendable {
+@@ -553,12 +629,32 @@ public struct PluginCachedState: Codable, Equatable, Sendable {
      public var updatedAt: Date
      public var items: [UsageItem]
      public var badge: String?
@@ -489,6 +784,7 @@ index 9a141f8..7c419f5 100644
 +    public var dimensions: [String: PluginDimension]?
 +    public var defaultDimension: String?
 +    public var dimensionOrder: [String]?
++    public var subtitle: String?
  
 -    public init(updatedAt: Date, items: [UsageItem], badge: String? = nil, chart: PluginChart? = nil) {
 +    public init(
@@ -499,7 +795,8 @@ index 9a141f8..7c419f5 100644
 +        chart: PluginChart? = nil,
 +        dimensions: [String: PluginDimension]? = nil,
 +        defaultDimension: String? = nil,
-+        dimensionOrder: [String]? = nil
++        dimensionOrder: [String]? = nil,
++        subtitle: String? = nil
 +    ) {
          self.updatedAt = updatedAt
          self.items = items
@@ -509,10 +806,11 @@ index 9a141f8..7c419f5 100644
 +        self.dimensions = dimensions
 +        self.defaultDimension = defaultDimension
 +        self.dimensionOrder = dimensionOrder
++        self.subtitle = subtitle
      }
  }
 diff --git a/Sources/UsageBoardCore/PluginExecutor.swift b/Sources/UsageBoardCore/PluginExecutor.swift
-index ead2d76..cdcc264 100644
+index ead2d76..942f2c0 100644
 --- a/Sources/UsageBoardCore/PluginExecutor.swift
 +++ b/Sources/UsageBoardCore/PluginExecutor.swift
 @@ -20,7 +20,7 @@ private final class DataBuffer: @unchecked Sendable {
@@ -524,7 +822,7 @@ index ead2d76..cdcc264 100644
          self.timeoutSeconds = timeoutSeconds
      }
  
-@@ -116,8 +116,11 @@ public struct PluginExecutor: Sendable {
+@@ -116,8 +116,12 @@ public struct PluginExecutor: Sendable {
                  items: pluginOutput.items,
                  updatedAt: pluginOutput.updatedAt,
                  badge: pluginOutput.badge,
@@ -534,7 +832,54 @@ index ead2d76..cdcc264 100644
 +                chart: pluginOutput.chart,
 +                dimensions: pluginOutput.dimensions,
 +                defaultDimension: pluginOutput.defaultDimension,
-+                dimensionOrder: pluginOutput.dimensionOrder
++                dimensionOrder: pluginOutput.dimensionOrder,
++                subtitle: pluginOutput.subtitle
              )
          } catch {
              if let errorOutput = try? JSONDecoder().decode(PluginOutputError.self, from: outputData),
+diff --git a/Tests/UsageBoardTests/UsageBoardTests.swift b/Tests/UsageBoardTests/UsageBoardTests.swift
+index a0955fd..c6706fc 100644
+--- a/Tests/UsageBoardTests/UsageBoardTests.swift
++++ b/Tests/UsageBoardTests/UsageBoardTests.swift
+@@ -134,6 +134,41 @@ final class UsageBoardTests: XCTestCase {
+         XCTAssertEqual(decoded.chart?.buckets.first?.label, "05-01")
+     }
+ 
++    func testPluginChartUsesSingleBucketSummaryOnlyForSingleDataBucket() {
++        let singleBucket = PluginChart(
++            period: "today",
++            bucketUnit: "day",
++            buckets: [
++                PluginChartBucket(
++                    id: "2026-05-18",
++                    label: "今日",
++                    segments: [PluginChartSegment(model: "gpt-5.5", tokens: 1_200)]
++                )
++            ]
++        )
++        let emptySingleBucket = PluginChart(
++            period: "today",
++            bucketUnit: "day",
++            buckets: [PluginChartBucket(id: "2026-05-18", label: "今日", segments: [])]
++        )
++        let multiBucket = PluginChart(
++            period: "7d",
++            bucketUnit: "day",
++            buckets: [
++                PluginChartBucket(id: "2026-05-17", label: "05-17", segments: []),
++                PluginChartBucket(
++                    id: "2026-05-18",
++                    label: "05-18",
++                    segments: [PluginChartSegment(model: "gpt-5.5", tokens: 1_200)]
++                )
++            ]
++        )
++
++        XCTAssertTrue(singleBucket.prefersSingleBucketSummary)
++        XCTAssertFalse(emptySingleBucket.prefersSingleBucketSummary)
++        XCTAssertFalse(multiBucket.prefersSingleBucketSummary)
++    }
++
+     func testPluginExecutorPropagatesChart() throws {
+         let script = """
+         import json

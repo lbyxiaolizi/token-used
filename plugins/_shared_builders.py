@@ -10,9 +10,6 @@ from _shared_cache import merge_bucket_maps
 from _shared_core import fmt_tokens, period_chart_buckets, tr
 from _shared_parsers import scan_claude, scan_codex, scan_gemini
 
-OVERVIEW_VISIBLE_MODELS = 5
-
-
 def period_label(period: str, language: str) -> str:
     key = {"today": "period_today", "7d": "period_7d", "30d": "period_30d",
            "90d": "period_90d", "all": "period_all"}.get(period, "period_7d")
@@ -78,9 +75,60 @@ def _overview_item_name(model: str, tokens: int, language: str) -> str:
     return f"{prefix}{display}  ({fmt_tokens(tokens, language)})"
 
 
-def _other_models_label(count: int, language: str) -> str:
-    key = "other_model" if count == 1 else "other_models"
-    return tr(language, key).format(count=count)
+def _model_item_name(model: str) -> str:
+    provider = _overview_provider_label(model)
+    display = _overview_model_display(model, provider)
+    prefix = f"{provider} · " if provider else ""
+    return f"{prefix}{display}"
+
+
+def _model_usage_item(*, item_id: str, model: str, tokens: int,
+                      total: int, language: str) -> dict[str, Any]:
+    total_m = total / 1_000_000
+    tokens_m = tokens / 1_000_000
+    return {
+        "id": item_id,
+        "name": _model_item_name(model),
+        "used": tokens_m,
+        "limit": max(total_m, 0.01),
+        "displayStyle": "percent",
+        "resetAt": None,
+        "status": "normal", "color": "blue",
+        "trailingText": fmt_tokens(tokens, language),
+    }
+
+
+OVERVIEW_PROVIDER_NAMES = {"claude": "Claude", "gemini": "Gemini", "codex": "Codex"}
+
+PROVIDER_ICONS = {
+    "claude": "https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/light/claude.png",
+    "gemini": "https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/light/gemini.png",
+    "codex":  "https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/light/openai.png",
+}
+
+
+def top_provider_icon(provider_totals: dict[str, int]) -> str | None:
+    top = max(provider_totals, key=provider_totals.get) if provider_totals else None
+    if top and provider_totals.get(top, 0) > 0:
+        return PROVIDER_ICONS.get(top)
+    return None
+
+
+# 非额度行不带告警/品牌色语义，统一中性蓝，避免红橙被误读
+def _provider_usage_item(*, provider: str, tokens: int, total: int,
+                         language: str) -> dict[str, Any]:
+    total_m = total / 1_000_000
+    tokens_m = tokens / 1_000_000
+    return {
+        "id": f"overview-provider-{provider}",
+        "name": OVERVIEW_PROVIDER_NAMES.get(provider, provider.capitalize()),
+        "used": tokens_m,
+        "limit": max(total_m, 0.01),
+        "displayStyle": "percent",
+        "resetAt": None,
+        "status": "normal", "color": "blue",
+        "trailingText": fmt_tokens(tokens, language),
+    }
 
 
 def build_per_cli_dimension(*, scan_fn: Callable, data_dir: str, period: str,
@@ -88,29 +136,29 @@ def build_per_cli_dimension(*, scan_fn: Callable, data_dir: str, period: str,
                              ) -> dict[str, Any]:
     by_bucket, model_totals, chart_meta, unit = scan_fn(data_dir, period, mode=mode)
     p_label = period_label(period, language)
-    mode_text = _token_mode_text(mode, language)
 
     total = int(sum(model_totals.values()))
-    today_id = chart_meta[-1]["id"] if chart_meta else None
-    today_total = int(sum(by_bucket.get(today_id, {}).values())) if today_id else 0
-    peak_total = int(max((sum(v.values()) for v in by_bucket.values()), default=0))
-    today_m = round(today_total / 1_000_000, 2)
-    peak_m = round(peak_total / 1_000_000, 2)
-    ratio = (today_total / peak_total) if peak_total > 0 else 0
-    status = "critical" if ratio >= 1.0 else "warning" if ratio >= 0.8 else "normal"
-    color = "red" if ratio >= 1.0 else "orange" if ratio >= 0.8 else "blue"
+    total_m = total / 1_000_000
 
     items: list[dict[str, Any]] = []
     if total > 0:
         items.append({
             "id": f"{hero_id_prefix}-total",
-            "name": f"{p_label} · {mode_text} · {fmt_tokens(total, language)} tokens",
-            "used": today_m, "limit": max(peak_m, 0.01),
+            "name": tr(language, "total_tokens_for_period").format(period=p_label),
+            "used": total_m, "limit": max(total_m, 0.01),
             "displayStyle": "ratio",
             "resetAt": None,
-            "status": status, "color": color,
-            "trailingText": fmt_tokens(today_total, language),
+            "status": "normal", "color": "blue",
+            "trailingText": fmt_tokens(total, language),
         })
+        for i, (model, tokens) in enumerate(sorted(model_totals.items(), key=lambda kv: -kv[1])):
+            items.append(_model_usage_item(
+                item_id=f"{hero_id_prefix}-model-{i}-{model}",
+                model=model,
+                tokens=int(tokens),
+                total=total,
+                language=language,
+            ))
 
     chart = _build_chart(by_bucket, model_totals, chart_meta, period, unit, language)
     return {"label": p_label, "bucketUnit": unit, "items": items, "chart": chart}
@@ -146,55 +194,27 @@ def build_overview_dimension(*, claude_dir: str, gemini_dir: str, codex_dir: str
         for m, t in models.items():
             period_model_totals[m] = period_model_totals.get(m, 0) + int(t)
     period_total = sum(period_model_totals.values())
-    sorted_models = sorted(period_model_totals.items(), key=lambda kv: -kv[1])
 
     items: list[dict[str, Any]] = []
     if period_total > 0:
-        total_m = round(period_total / 1_000_000, 2)
-        p_label = period_label(period, language)
-        mode_text = _token_mode_text(mode, language)
-        items.append({
-            "id": "overview-period-total",
-            "name": f"{p_label}  ▸  {fmt_tokens(period_total, language)} tokens · {mode_text}",
-            "used": total_m, "limit": max(total_m, 0.01),
-            "displayStyle": "ratio",
-            "resetAt": None,
-            "status": "normal", "color": "blue",
-            "trailingText": fmt_tokens(period_total, language),
-        })
-        visible_models = sorted_models[:OVERVIEW_VISIBLE_MODELS]
-        for i, (model, tokens) in enumerate(visible_models):
-            tokens_m = round(tokens / 1_000_000, 2)
-            share = tokens / period_total if period_total else 0
-            color = "red" if share >= 0.5 else "orange" if share >= 0.25 else "blue"
-            items.append({
-                "id": f"overview-{i}-{model}",
-                "name": _overview_item_name(model, tokens, language),
-                "used": tokens_m, "limit": max(total_m, 0.01),
-                "displayStyle": "percent",
-                "resetAt": None,
-                "status": "normal", "color": color,
-                "trailingText": fmt_tokens(tokens, language),
-            })
-        other_models = sorted_models[OVERVIEW_VISIBLE_MODELS:]
-        if other_models:
-            other_tokens = int(sum(tokens for _model, tokens in other_models))
-            other_count = len(other_models)
-            tokens_m = round(other_tokens / 1_000_000, 2)
-            share = other_tokens / period_total if period_total else 0
-            color = "red" if share >= 0.5 else "orange" if share >= 0.25 else "blue"
-            items.append({
-                "id": "overview-other-models",
-                "name": f"{_other_models_label(other_count, language)}  ({fmt_tokens(other_tokens, language)})",
-                "used": tokens_m, "limit": max(total_m, 0.01),
-                "displayStyle": "percent",
-                "resetAt": None,
-                "status": "normal", "color": color,
-                "trailingText": fmt_tokens(other_tokens, language),
-            })
+        sorted_providers = sorted(
+            ((prov, tokens) for prov, tokens in provider_totals.items() if tokens > 0),
+            key=lambda kv: -kv[1],
+        )
+        for prov, tokens in sorted_providers:
+            items.append(_provider_usage_item(
+                provider=prov, tokens=int(tokens),
+                total=period_total, language=language,
+            ))
 
     chart = _build_chart(by_bucket, period_model_totals, chart_meta, period, unit, language)
     if not any(b["segments"] for b in chart["buckets"]):
         chart["message"] = tr(language, "no_data")
-    return {"label": period_label(period, language), "bucketUnit": unit,
-            "items": items, "chart": chart, "providerTotals": provider_totals}
+    out = {"label": period_label(period, language), "bucketUnit": unit,
+           "items": items, "chart": chart, "providerTotals": provider_totals}
+    if period_total > 0:
+        out["badge"] = fmt_tokens(period_total, language)
+    icon_url = top_provider_icon(provider_totals)
+    if icon_url:
+        out["iconURL"] = icon_url
+    return out

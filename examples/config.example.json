@@ -1,385 +1,374 @@
 {
-  "language" : "zh-Hans",
-  "launchAtLogin" : true,
-  "overviewDisplayMode" : "grouped",
-  "plugins" : [
+  "language": "zh-Hans",
+  "launchAtLogin": true,
+  "overviewDisplayMode": "grouped",
+  "plugins": [
     {
-      "enabled" : true,
-      "executablePath" : "\/__HOME__\/Library\/Application Support\/UsageBoard\/plugins\/daily-overview-plugin.py",
-      "metadata" : {
-        "description" : "聚合 Claude \/ Gemini \/ Codex 当天所有模型的 token 用量",
-        "description@en" : "Aggregate today's token usage across Claude \/ Gemini \/ Codex by model",
-        "description@zh-Hans" : "聚合 Claude \/ Gemini \/ Codex 当天所有模型的 token 用量",
-        "icon" : "https:\/\/raw.githubusercontent.com\/lobehub\/lobe-icons\/refs\/heads\/master\/packages\/static-png\/light\/openai.png",
-        "name" : "用量总览",
-        "name@en" : "Usage Overview",
-        "name@zh-Hans" : "用量总览",
-        "parameters" : [
+      "enabled": true,
+      "executablePath": "/__HOME__/Library/Application Support/UsageBoard/plugins/daily-overview-plugin.py",
+      "metadata": {
+        "description": "按周期聚合 Claude / Gemini / Codex 所有模型的 token 用量",
+        "description@en": "Aggregate token usage across Claude / Gemini / Codex by period and model",
+        "description@zh-Hans": "按周期聚合 Claude / Gemini / Codex 所有模型的 token 用量",
+        "icon": "https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/light/openai.png",
+        "name": "用量总览",
+        "name@en": "Usage Overview",
+        "name@zh-Hans": "用量总览",
+        "parameters": [
           {
-            "defaultValue" : "~\/.claude\/projects",
-            "label" : "Claude 数据目录",
-            "label@en" : "Claude Data Dir",
-            "label@zh-Hans" : "Claude 数据目录",
-            "name" : "CLAUDE_DIR",
-            "options" : [
-
-            ],
-            "required" : false,
-            "type" : "string"
+            "defaultValue": "~/.claude/projects",
+            "label": "Claude 数据目录",
+            "label@en": "Claude Data Dir",
+            "label@zh-Hans": "Claude 数据目录",
+            "name": "CLAUDE_DIR",
+            "options": [],
+            "required": false,
+            "type": "string"
           },
           {
-            "defaultValue" : "~\/.gemini\/tmp",
-            "label" : "Gemini 数据目录",
-            "label@en" : "Gemini Data Dir",
-            "label@zh-Hans" : "Gemini 数据目录",
-            "name" : "GEMINI_DIR",
-            "options" : [
-
-            ],
-            "required" : false,
-            "type" : "string"
+            "defaultValue": "~/.gemini/tmp",
+            "label": "Gemini 数据目录",
+            "label@en": "Gemini Data Dir",
+            "label@zh-Hans": "Gemini 数据目录",
+            "name": "GEMINI_DIR",
+            "options": [],
+            "required": false,
+            "type": "string"
           },
           {
-            "defaultValue" : "~\/.codex",
-            "label" : "Codex 数据目录",
-            "label@en" : "Codex Data Dir",
-            "label@zh-Hans" : "Codex 数据目录",
-            "name" : "CODEX_DIR",
-            "options" : [
-
-            ],
-            "required" : false,
-            "type" : "string"
+            "defaultValue": "~/.codex",
+            "label": "Codex 数据目录",
+            "label@en": "Codex Data Dir",
+            "label@zh-Hans": "Codex 数据目录",
+            "name": "CODEX_DIR",
+            "options": [],
+            "required": false,
+            "type": "string"
           },
           {
-            "defaultValue" : "30d",
-            "label" : "默认图表周期",
-            "label@en" : "Default Chart Period",
-            "label@zh-Hans" : "默认图表周期",
-            "name" : "CHART_PERIOD",
-            "options" : [
+            "defaultValue": "30d",
+            "label": "默认统计周期",
+            "label@en": "Default Stats Period",
+            "label@zh-Hans": "默认统计周期",
+            "name": "STAT_PERIOD",
+            "options": [
               {
-                "label" : "今日",
-                "label@en" : "Today",
-                "label@zh-Hans" : "今日",
-                "value" : "today"
+                "label": "今日",
+                "label@en": "Today",
+                "label@zh-Hans": "今日",
+                "value": "today"
               },
               {
-                "label" : "7 天",
-                "label@en" : "7 days",
-                "label@zh-Hans" : "7 天",
-                "value" : "7d"
+                "label": "7 天",
+                "label@en": "7 days",
+                "label@zh-Hans": "7 天",
+                "value": "7d"
               },
               {
-                "label" : "30 天",
-                "label@en" : "30 days",
-                "label@zh-Hans" : "30 天",
-                "value" : "30d"
+                "label": "30 天",
+                "label@en": "30 days",
+                "label@zh-Hans": "30 天",
+                "value": "30d"
               },
               {
-                "label" : "90 天",
-                "label@en" : "90 days",
-                "label@zh-Hans" : "90 天",
-                "value" : "90d"
+                "label": "90 天",
+                "label@en": "90 days",
+                "label@zh-Hans": "90 天",
+                "value": "90d"
               },
               {
-                "label" : "全部 (12 月)",
-                "label@en" : "All (12 mo)",
-                "label@zh-Hans" : "全部 (12 月)",
-                "value" : "all"
+                "label": "全部 (12 月)",
+                "label@en": "All (12 mo)",
+                "label@zh-Hans": "全部 (12 月)",
+                "value": "all"
               }
             ],
-            "required" : false,
-            "type" : "choice"
+            "required": false,
+            "type": "choice"
           },
           {
-            "defaultValue" : "billable",
-            "label" : "Token 计算口径（仅对 Claude 生效）",
-            "label@en" : "Token Counting Mode (Claude only)",
-            "label@zh-Hans" : "Token 计算口径（仅对 Claude 生效）",
-            "name" : "TOKEN_MODE",
-            "options" : [
+            "defaultValue": "billable",
+            "label": "Token 计算口径（仅对 Claude 生效）",
+            "label@en": "Token Counting Mode (Claude only)",
+            "label@zh-Hans": "Token 计算口径（仅对 Claude 生效）",
+            "name": "TOKEN_MODE",
+            "options": [
               {
-                "label" : "计费等价（input+output+cache_creation）",
-                "label@en" : "Billable (input+output+cache_creation)",
-                "label@zh-Hans" : "计费等价（input+output+cache_creation）",
-                "value" : "billable"
+                "label": "计费等价（input+output+cache_creation）",
+                "label@en": "Billable (input+output+cache_creation)",
+                "label@zh-Hans": "计费等价（input+output+cache_creation）",
+                "value": "billable"
               },
               {
-                "label" : "原始（含 cache_read 命中）",
-                "label@en" : "Raw (incl. cache_read hits)",
-                "label@zh-Hans" : "原始（含 cache_read 命中）",
-                "value" : "raw"
+                "label": "原始（含 cache_read 命中）",
+                "label@en": "Raw (incl. cache_read hits)",
+                "label@zh-Hans": "原始（含 cache_read 命中）",
+                "value": "raw"
               }
             ],
-            "required" : false,
-            "type" : "choice"
+            "required": false,
+            "type": "choice"
           }
         ]
       },
-      "name" : "用量总览",
-      "parameterValues" : {
-        "CHART_PERIOD" : "30d",
-        "CLAUDE_DIR" : "~\/.claude\/projects",
-        "CODEX_DIR" : "~\/.codex",
-        "GEMINI_DIR" : "~\/.gemini\/tmp",
-        "TOKEN_MODE" : "billable"
+      "name": "用量总览",
+      "parameterValues": {
+        "CLAUDE_DIR": "~/.claude/projects",
+        "CODEX_DIR": "~/.codex",
+        "GEMINI_DIR": "~/.gemini/tmp",
+        "STAT_PERIOD": "30d",
+        "TOKEN_MODE": "billable",
+        "SHOW_CLAUDE_QUOTA": "on"
       },
-      "refreshIntervalSeconds" : 300,
-      "stateID" : "daily-overview"
+      "refreshIntervalSeconds": 300,
+      "stateID": "daily-overview"
     },
     {
-      "enabled" : true,
-      "executablePath" : "\/__HOME__\/Library\/Application Support\/UsageBoard\/plugins\/claude-code-usage-plugin.py",
-      "metadata" : {
-        "description" : "查询 Claude Code 本地会话的 token 用量统计",
-        "description@en" : "Aggregate Claude Code local session token usage",
-        "description@zh-Hans" : "查询 Claude Code 本地会话的 token 用量统计",
-        "icon" : "https:\/\/raw.githubusercontent.com\/lobehub\/lobe-icons\/refs\/heads\/master\/packages\/static-png\/light\/claude-color.png",
-        "name" : "Claude Code",
-        "name@en" : "Claude Code",
-        "name@zh-Hans" : "Claude Code",
-        "parameters" : [
+      "enabled": true,
+      "executablePath": "/__HOME__/Library/Application Support/UsageBoard/plugins/claude-code-usage-plugin.py",
+      "metadata": {
+        "description": "查询 Claude Code 本地会话的 token 用量统计",
+        "description@en": "Aggregate Claude Code local session token usage",
+        "description@zh-Hans": "查询 Claude Code 本地会话的 token 用量统计",
+        "icon": "https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/light/claude-color.png",
+        "name": "Claude Code",
+        "name@en": "Claude Code",
+        "name@zh-Hans": "Claude Code",
+        "parameters": [
           {
-            "defaultValue" : "~\/.claude\/projects",
-            "label" : "数据目录",
-            "label@en" : "Data Directory",
-            "label@zh-Hans" : "数据目录",
-            "name" : "DATA_DIR",
-            "options" : [
-
-            ],
-            "placeholder" : "~\/.claude\/projects",
-            "required" : false,
-            "type" : "string"
+            "defaultValue": "~/.claude/projects",
+            "label": "数据目录",
+            "label@en": "Data Directory",
+            "label@zh-Hans": "数据目录",
+            "name": "DATA_DIR",
+            "options": [],
+            "placeholder": "~/.claude/projects",
+            "required": false,
+            "type": "string"
           },
           {
-            "defaultValue" : "30d",
-            "label" : "默认统计周期",
-            "label@en" : "Default Stats Period",
-            "label@zh-Hans" : "默认统计周期",
-            "name" : "STAT_PERIOD",
-            "options" : [
+            "defaultValue": "30d",
+            "label": "默认统计周期",
+            "label@en": "Default Stats Period",
+            "label@zh-Hans": "默认统计周期",
+            "name": "STAT_PERIOD",
+            "options": [
               {
-                "label" : "今日",
-                "label@en" : "Today",
-                "label@zh-Hans" : "今日",
-                "value" : "today"
+                "label": "今日",
+                "label@en": "Today",
+                "label@zh-Hans": "今日",
+                "value": "today"
               },
               {
-                "label" : "7 天",
-                "label@en" : "7 days",
-                "label@zh-Hans" : "7 天",
-                "value" : "7d"
+                "label": "7 天",
+                "label@en": "7 days",
+                "label@zh-Hans": "7 天",
+                "value": "7d"
               },
               {
-                "label" : "30 天",
-                "label@en" : "30 days",
-                "label@zh-Hans" : "30 天",
-                "value" : "30d"
+                "label": "30 天",
+                "label@en": "30 days",
+                "label@zh-Hans": "30 天",
+                "value": "30d"
               },
               {
-                "label" : "90 天",
-                "label@en" : "90 days",
-                "label@zh-Hans" : "90 天",
-                "value" : "90d"
+                "label": "90 天",
+                "label@en": "90 days",
+                "label@zh-Hans": "90 天",
+                "value": "90d"
               },
               {
-                "label" : "全部 (12 月)",
-                "label@en" : "All (12 mo)",
-                "label@zh-Hans" : "全部 (12 月)",
-                "value" : "all"
+                "label": "全部 (12 月)",
+                "label@en": "All (12 mo)",
+                "label@zh-Hans": "全部 (12 月)",
+                "value": "all"
               }
             ],
-            "required" : false,
-            "type" : "choice"
+            "required": false,
+            "type": "choice"
           },
           {
-            "defaultValue" : "billable",
-            "label" : "Token 计算口径",
-            "label@en" : "Token Counting Mode",
-            "label@zh-Hans" : "Token 计算口径",
-            "name" : "TOKEN_MODE",
-            "options" : [
+            "defaultValue": "billable",
+            "label": "Token 计算口径",
+            "label@en": "Token Counting Mode",
+            "label@zh-Hans": "Token 计算口径",
+            "name": "TOKEN_MODE",
+            "options": [
               {
-                "label" : "计费等价（input+output+cache_creation）",
-                "label@en" : "Billable (input+output+cache_creation)",
-                "label@zh-Hans" : "计费等价（input+output+cache_creation）",
-                "value" : "billable"
+                "label": "计费等价（input+output+cache_creation）",
+                "label@en": "Billable (input+output+cache_creation)",
+                "label@zh-Hans": "计费等价（input+output+cache_creation）",
+                "value": "billable"
               },
               {
-                "label" : "原始（含 cache_read 命中）",
-                "label@en" : "Raw (incl. cache_read hits)",
-                "label@zh-Hans" : "原始（含 cache_read 命中）",
-                "value" : "raw"
+                "label": "原始（含 cache_read 命中）",
+                "label@en": "Raw (incl. cache_read hits)",
+                "label@zh-Hans": "原始（含 cache_read 命中）",
+                "value": "raw"
               }
             ],
-            "required" : false,
-            "type" : "choice"
+            "required": false,
+            "type": "choice"
           }
         ]
       },
-      "name" : "Claude Code",
-      "parameterValues" : {
-        "DATA_DIR" : "~\/.claude\/projects",
-        "STAT_PERIOD" : "30d",
-        "TOKEN_MODE" : "billable"
+      "name": "Claude Code",
+      "parameterValues": {
+        "DATA_DIR": "~/.claude/projects",
+        "STAT_PERIOD": "30d",
+        "TOKEN_MODE": "billable"
       },
-      "refreshIntervalSeconds" : 300,
-      "stateID" : "claude-code-local"
+      "refreshIntervalSeconds": 300,
+      "stateID": "claude-code-local"
     },
     {
-      "enabled" : true,
-      "executablePath" : "\/__HOME__\/Library\/Application Support\/UsageBoard\/plugins\/gemini-cli-usage-plugin.py",
-      "metadata" : {
-        "description" : "查询 Gemini CLI 本地会话的 token 用量统计",
-        "description@en" : "Aggregate Gemini CLI local session token usage",
-        "description@zh-Hans" : "查询 Gemini CLI 本地会话的 token 用量统计",
-        "icon" : "https:\/\/raw.githubusercontent.com\/lobehub\/lobe-icons\/refs\/heads\/master\/packages\/static-png\/light\/gemini-color.png",
-        "name" : "Gemini CLI",
-        "name@en" : "Gemini CLI",
-        "name@zh-Hans" : "Gemini CLI",
-        "parameters" : [
+      "enabled": true,
+      "executablePath": "/__HOME__/Library/Application Support/UsageBoard/plugins/gemini-cli-usage-plugin.py",
+      "metadata": {
+        "description": "查询 Gemini CLI 本地会话的 token 用量统计",
+        "description@en": "Aggregate Gemini CLI local session token usage",
+        "description@zh-Hans": "查询 Gemini CLI 本地会话的 token 用量统计",
+        "icon": "https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/light/gemini-color.png",
+        "name": "Gemini CLI",
+        "name@en": "Gemini CLI",
+        "name@zh-Hans": "Gemini CLI",
+        "parameters": [
           {
-            "defaultValue" : "~\/.gemini\/tmp",
-            "label" : "数据目录",
-            "label@en" : "Data Directory",
-            "label@zh-Hans" : "数据目录",
-            "name" : "DATA_DIR",
-            "options" : [
-
-            ],
-            "placeholder" : "~\/.gemini\/tmp",
-            "required" : false,
-            "type" : "string"
+            "defaultValue": "~/.gemini/tmp",
+            "label": "数据目录",
+            "label@en": "Data Directory",
+            "label@zh-Hans": "数据目录",
+            "name": "DATA_DIR",
+            "options": [],
+            "placeholder": "~/.gemini/tmp",
+            "required": false,
+            "type": "string"
           },
           {
-            "defaultValue" : "30d",
-            "label" : "默认统计周期",
-            "label@en" : "Default Stats Period",
-            "label@zh-Hans" : "默认统计周期",
-            "name" : "STAT_PERIOD",
-            "options" : [
+            "defaultValue": "30d",
+            "label": "默认统计周期",
+            "label@en": "Default Stats Period",
+            "label@zh-Hans": "默认统计周期",
+            "name": "STAT_PERIOD",
+            "options": [
               {
-                "label" : "今日",
-                "label@en" : "Today",
-                "label@zh-Hans" : "今日",
-                "value" : "today"
+                "label": "今日",
+                "label@en": "Today",
+                "label@zh-Hans": "今日",
+                "value": "today"
               },
               {
-                "label" : "7 天",
-                "label@en" : "7 days",
-                "label@zh-Hans" : "7 天",
-                "value" : "7d"
+                "label": "7 天",
+                "label@en": "7 days",
+                "label@zh-Hans": "7 天",
+                "value": "7d"
               },
               {
-                "label" : "30 天",
-                "label@en" : "30 days",
-                "label@zh-Hans" : "30 天",
-                "value" : "30d"
+                "label": "30 天",
+                "label@en": "30 days",
+                "label@zh-Hans": "30 天",
+                "value": "30d"
               },
               {
-                "label" : "90 天",
-                "label@en" : "90 days",
-                "label@zh-Hans" : "90 天",
-                "value" : "90d"
+                "label": "90 天",
+                "label@en": "90 days",
+                "label@zh-Hans": "90 天",
+                "value": "90d"
               },
               {
-                "label" : "全部 (12 月)",
-                "label@en" : "All (12 mo)",
-                "label@zh-Hans" : "全部 (12 月)",
-                "value" : "all"
+                "label": "全部 (12 月)",
+                "label@en": "All (12 mo)",
+                "label@zh-Hans": "全部 (12 月)",
+                "value": "all"
               }
             ],
-            "required" : false,
-            "type" : "choice"
+            "required": false,
+            "type": "choice"
           }
         ]
       },
-      "name" : "Gemini CLI",
-      "parameterValues" : {
-        "DATA_DIR" : "~\/.gemini\/tmp",
-        "STAT_PERIOD" : "30d"
+      "name": "Gemini CLI",
+      "parameterValues": {
+        "DATA_DIR": "~/.gemini/tmp",
+        "STAT_PERIOD": "30d"
       },
-      "refreshIntervalSeconds" : 300,
-      "stateID" : "gemini-cli-local"
+      "refreshIntervalSeconds": 300,
+      "stateID": "gemini-cli-local"
     },
     {
-      "enabled" : true,
-      "executablePath" : "\/__HOME__\/Library\/Application Support\/UsageBoard\/plugins\/codex-local-usage-plugin.py",
-      "metadata" : {
-        "description" : "查询 Codex CLI 本地会话的 token 用量统计（不依赖 ChatGPT 订阅）",
-        "description@en" : "Aggregate Codex CLI local session token usage (no ChatGPT subscription needed)",
-        "description@zh-Hans" : "查询 Codex CLI 本地会话的 token 用量统计（不依赖 ChatGPT 订阅）",
-        "icon" : "https:\/\/raw.githubusercontent.com\/lobehub\/lobe-icons\/refs\/heads\/master\/packages\/static-png\/light\/codex-color.png",
-        "name" : "Codex (本地)",
-        "name@en" : "Codex (Local)",
-        "name@zh-Hans" : "Codex (本地)",
-        "parameters" : [
+      "enabled": true,
+      "executablePath": "/__HOME__/Library/Application Support/UsageBoard/plugins/codex-local-usage-plugin.py",
+      "metadata": {
+        "description": "查询 Codex CLI 本地会话的 token 用量统计（不依赖 ChatGPT 订阅）",
+        "description@en": "Aggregate Codex CLI local session token usage (no ChatGPT subscription needed)",
+        "description@zh-Hans": "查询 Codex CLI 本地会话的 token 用量统计（不依赖 ChatGPT 订阅）",
+        "icon": "https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/light/codex-color.png",
+        "name": "Codex (本地)",
+        "name@en": "Codex (Local)",
+        "name@zh-Hans": "Codex (本地)",
+        "parameters": [
           {
-            "defaultValue" : "~\/.codex",
-            "label" : "数据目录",
-            "label@en" : "Data Directory",
-            "label@zh-Hans" : "数据目录",
-            "name" : "DATA_DIR",
-            "options" : [
-
-            ],
-            "placeholder" : "~\/.codex",
-            "required" : false,
-            "type" : "string"
+            "defaultValue": "~/.codex",
+            "label": "数据目录",
+            "label@en": "Data Directory",
+            "label@zh-Hans": "数据目录",
+            "name": "DATA_DIR",
+            "options": [],
+            "placeholder": "~/.codex",
+            "required": false,
+            "type": "string"
           },
           {
-            "defaultValue" : "30d",
-            "label" : "默认统计周期",
-            "label@en" : "Default Stats Period",
-            "label@zh-Hans" : "默认统计周期",
-            "name" : "STAT_PERIOD",
-            "options" : [
+            "defaultValue": "30d",
+            "label": "默认统计周期",
+            "label@en": "Default Stats Period",
+            "label@zh-Hans": "默认统计周期",
+            "name": "STAT_PERIOD",
+            "options": [
               {
-                "label" : "今日",
-                "label@en" : "Today",
-                "label@zh-Hans" : "今日",
-                "value" : "today"
+                "label": "今日",
+                "label@en": "Today",
+                "label@zh-Hans": "今日",
+                "value": "today"
               },
               {
-                "label" : "7 天",
-                "label@en" : "7 days",
-                "label@zh-Hans" : "7 天",
-                "value" : "7d"
+                "label": "7 天",
+                "label@en": "7 days",
+                "label@zh-Hans": "7 天",
+                "value": "7d"
               },
               {
-                "label" : "30 天",
-                "label@en" : "30 days",
-                "label@zh-Hans" : "30 天",
-                "value" : "30d"
+                "label": "30 天",
+                "label@en": "30 days",
+                "label@zh-Hans": "30 天",
+                "value": "30d"
               },
               {
-                "label" : "90 天",
-                "label@en" : "90 days",
-                "label@zh-Hans" : "90 天",
-                "value" : "90d"
+                "label": "90 天",
+                "label@en": "90 days",
+                "label@zh-Hans": "90 天",
+                "value": "90d"
               },
               {
-                "label" : "全部 (12 月)",
-                "label@en" : "All (12 mo)",
-                "label@zh-Hans" : "全部 (12 月)",
-                "value" : "all"
+                "label": "全部 (12 月)",
+                "label@en": "All (12 mo)",
+                "label@zh-Hans": "全部 (12 月)",
+                "value": "all"
               }
             ],
-            "required" : false,
-            "type" : "choice"
+            "required": false,
+            "type": "choice"
           }
         ]
       },
-      "name" : "Codex (本地)",
-      "parameterValues" : {
-        "DATA_DIR" : "~\/.codex",
-        "STAT_PERIOD" : "30d"
+      "name": "Codex (本地)",
+      "parameterValues": {
+        "DATA_DIR": "~/.codex",
+        "STAT_PERIOD": "30d"
       },
-      "refreshIntervalSeconds" : 300,
-      "stateID" : "codex-local"
+      "refreshIntervalSeconds": 300,
+      "stateID": "codex-local"
     }
   ],
-  "schemaVersion" : 1
+  "schemaVersion": 1
 }

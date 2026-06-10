@@ -75,6 +75,9 @@ class PeriodHelpersTests(unittest.TestCase):
         self.assertEqual(_shared.normalize_period(None), _shared.DEFAULT_PERIOD)
         self.assertEqual(_shared.normalize_period("xx"), _shared.DEFAULT_PERIOD)
 
+    def test_cache_prune_window_covers_all_period(self):
+        self.assertGreaterEqual(_shared.CACHE_PRUNE_DAYS, 370)
+
 
 class FmtTokensTests(unittest.TestCase):
     def test_en_units(self):
@@ -154,6 +157,181 @@ class ParserTests(unittest.TestCase):
         # gpt-5.5 第一次 100 + 第二次 200 = 300; gpt-5.5-codex 第三次 200
         self.assertEqual(bag.get("gpt-5.5"), {"raw": 300, "billable": 300})
         self.assertEqual(bag.get("gpt-5.5-codex"), {"raw": 200, "billable": 200})
+
+    def test_codex_parser_uses_highwater_when_total_counter_drops(self):
+        fp = self.scratch / "codex-counter-drop.jsonl"
+        now = datetime.combine(self.today, time(12, 0), tzinfo=timezone.utc)
+        lines = [
+            {"type": "turn_context",
+             "payload": {"model": "gpt-5.5", "timestamp": now.isoformat()}},
+            {"type": "token_count",
+             "payload": {"type": "token_count", "timestamp": now.isoformat(),
+                         "info": {"total_token_usage": {"total_tokens": 100}}}},
+            {"type": "token_count",
+             "payload": {"type": "token_count", "timestamp": now.isoformat(),
+                         "info": {"total_token_usage": {"total_tokens": 90}}}},
+            {"type": "token_count",
+             "payload": {"type": "token_count", "timestamp": now.isoformat(),
+                         "info": {"total_token_usage": {"total_tokens": 120}}}},
+        ]
+        with open(fp, "w", encoding="utf-8") as fh:
+            for line in lines:
+                fh.write(json.dumps(line) + "\n")
+
+        out = _shared.parse_codex_file(str(fp))
+
+        self.assertEqual(out[self.today.isoformat()]["gpt-5.5"],
+                         {"raw": 120, "billable": 120})
+
+    def test_codex_file_listing_includes_old_session_modified_in_window(self):
+        old = self.today - timedelta(days=10)
+        today_dt = datetime.combine(self.today, time(12, 0), tzinfo=timezone.utc)
+        old_dir = (self.paths["codex"] / "sessions" / old.strftime("%Y")
+                   / old.strftime("%m") / old.strftime("%d"))
+        old_dir.mkdir(parents=True, exist_ok=True)
+        fp = old_dir / f"rollout-{old.isoformat()}T01-00-00-cross-window.jsonl"
+        with open(fp, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps({
+                "type": "turn_context",
+                "payload": {"model": "gpt-5.5", "timestamp": today_dt.isoformat()},
+            }) + "\n")
+            fh.write(json.dumps({
+                "type": "token_count",
+                "payload": {
+                    "type": "token_count",
+                    "timestamp": today_dt.isoformat(),
+                    "info": {"total_token_usage": {"total_tokens": 1234}},
+                },
+            }) + "\n")
+        now_ts = datetime.now().timestamp()
+        os.utime(fp, (now_ts, now_ts))
+
+        files = _shared.list_codex_files(str(self.paths["codex"]), self.today)
+
+        self.assertIn(str(fp), files)
+
+
+class OutputBuilderTests(unittest.TestCase):
+    def test_per_cli_dimension_uses_period_total_for_visible_count_and_lists_models(self):
+        today = date.today()
+        old = today - timedelta(days=10)
+        chart_meta = [
+            {"id": old.isoformat(), "label": old.strftime("%m-%d"),
+             "start": old.isoformat(), "end": old.isoformat()},
+            {"id": today.isoformat(), "label": today.strftime("%m-%d"),
+             "start": today.isoformat(), "end": today.isoformat()},
+        ]
+
+        def fake_scan(_data_dir, _period, *, mode):
+            by_bucket = {
+                old.isoformat(): {"older-model": 20},
+                today.isoformat(): {"today-model": 10},
+            }
+            return by_bucket, {"older-model": 20, "today-model": 10}, chart_meta, "day"
+
+        dim = _shared.build_per_cli_dimension(
+            scan_fn=fake_scan,
+            data_dir="/tmp/unused",
+            period="30d",
+            mode="billable",
+            language="en",
+            hero_id_prefix="fake",
+        )
+
+        self.assertEqual(dim["items"][0]["trailingText"], "30")
+        self.assertEqual(dim["items"][0]["used"], 30 / 1_000_000)
+        self.assertEqual([item["id"] for item in dim["items"][1:]],
+                         ["fake-model-0-older-model", "fake-model-1-today-model"])
+
+
+class QuotaModuleTests(unittest.TestCase):
+    """Claude 账号额度获取：依赖注入，不碰真实 Keychain / 网络。"""
+
+    PAYLOAD = {
+        "five_hour": {"utilization": 27.0, "resets_at": "2026-06-10T10:40:00.906816+00:00"},
+        "seven_day": {"utilization": 88.5, "resets_at": "2026-06-13T12:00:00+00:00"},
+    }
+
+    def setUp(self):
+        self.cache_root = Path(tempfile.mkdtemp(prefix="tokenused-quota-"))
+        self.now = datetime(2026, 6, 10, 8, 0, 0, tzinfo=timezone.utc)
+
+    def tearDown(self):
+        shutil.rmtree(self.cache_root, ignore_errors=True)
+
+    def _get(self, *, token="tok", fetcher=None, now=None):
+        return _shared.get_quota(
+            now=now or self.now,
+            token_reader=lambda: token,
+            fetcher=fetcher or (lambda _t: dict(self.PAYLOAD)),
+            cache_root=self.cache_root,
+        )
+
+    def test_no_token_hides_quota(self):
+        """CPA / 纯 API key 环境读不到 OAuth 凭据 → 整块隐藏。"""
+        def explode(_t):
+            raise AssertionError("must not fetch without token")
+        self.assertIsNone(self._get(token=None, fetcher=explode))
+
+    def test_fetch_success_normalizes_and_caches(self):
+        windows = self._get()
+        self.assertEqual(windows["five_hour"]["utilization"], 27.0)
+        # resets_at 归一为不带微秒的 UTC Z 格式（Swift .iso8601 不吃小数秒）
+        self.assertEqual(windows["five_hour"]["resets_at"], "2026-06-10T10:40:00Z")
+        self.assertEqual(windows["seven_day"]["resets_at"], "2026-06-13T12:00:00Z")
+        cached = json.loads((self.cache_root / "claude-quota.cache.json").read_text())
+        self.assertEqual(cached["windows"], windows)
+
+    def test_fresh_cache_skips_fetch(self):
+        self._get()
+        def explode(_t):
+            raise AssertionError("TTL 内必须直接用缓存")
+        windows = self._get(fetcher=explode, now=self.now + timedelta(seconds=60))
+        self.assertEqual(windows["five_hour"]["utilization"], 27.0)
+
+    def test_fetch_failure_uses_recent_stale_cache(self):
+        self._get()
+        def boom(_t):
+            raise OSError("network down")
+        windows = self._get(fetcher=boom, now=self.now + timedelta(minutes=10))
+        self.assertEqual(windows["seven_day"]["utilization"], 88.5)
+
+    def test_fetch_failure_with_expired_cache_hides(self):
+        self._get()
+        def boom(_t):
+            raise OSError("network down")
+        self.assertIsNone(self._get(fetcher=boom, now=self.now + timedelta(minutes=45)))
+
+    def test_unauthorized_hides_even_with_cache(self):
+        self._get()
+        def denied(_t):
+            raise PermissionError("oauth usage api returned 401")
+        self.assertIsNone(self._get(fetcher=denied, now=self.now + timedelta(minutes=10)))
+
+    def test_malformed_payload_hides(self):
+        self.assertIsNone(self._get(fetcher=lambda _t: {"unrelated": 1}))
+        self.assertIsNone(self._get(fetcher=lambda _t: {"five_hour": {"utilization": None}}))
+
+    def test_build_quota_items_thresholds_and_reset(self):
+        windows = self._get()
+        items = _shared.build_quota_items(windows, "en")
+        self.assertEqual([i["id"] for i in items],
+                         ["claude-quota-five_hour", "claude-quota-seven_day"])
+        five, week = items
+        self.assertEqual((five["used"], five["limit"]), (27.0, 100.0))
+        self.assertEqual((five["status"], five["color"]), ("normal", "blue"))
+        self.assertEqual(five["resetAt"], "2026-06-10T10:40:00Z")
+        self.assertNotIn("trailingText", five, "额度行右列留给原生重置时间")
+        self.assertEqual((week["status"], week["color"]), ("critical", "red"))
+
+    def test_build_quota_items_warning_band_and_clamp(self):
+        items = _shared.build_quota_items({
+            "five_hour": {"utilization": 60.0, "resets_at": None},
+            "seven_day": {"utilization": 130.0, "resets_at": None},
+        }, "zh-Hans")
+        self.assertEqual((items[0]["status"], items[0]["color"]), ("warning", "orange"))
+        self.assertEqual(items[1]["used"], 100.0, "utilization 超 100 截断")
+        self.assertIsNone(items[0]["resetAt"])
 
 
 # ─────────────────────────── cache layer tests ──────────────────────────────
@@ -431,7 +609,9 @@ class PluginEndToEndTests(unittest.TestCase):
             "--usageboard-param", "STAT_PERIOD=7d",
         ])
         self.assertEqual(out["schemaVersion"], 1)
-        self.assertEqual(len(out["items"]), 1)
+        self.assertEqual(len(out["items"]), 3)
+        self.assertTrue(out["items"][0]["id"].endswith("-total"))
+        self.assertTrue(all("-model-" in item["id"] for item in out["items"][1:]))
         self.assertIn("trailingText", out["items"][0])
         self.assertEqual(len(out["chart"]["buckets"]), 7)
 
@@ -441,7 +621,9 @@ class PluginEndToEndTests(unittest.TestCase):
             "--usageboard-param", "STAT_PERIOD=7d",
         ])
         self.assertEqual(out["schemaVersion"], 1)
-        self.assertEqual(len(out["items"]), 1)
+        self.assertEqual(len(out["items"]), 3)
+        self.assertTrue(out["items"][0]["id"].endswith("-total"))
+        self.assertTrue(all("-model-" in item["id"] for item in out["items"][1:]))
         self.assertEqual(len(out["chart"]["buckets"]), 7)
 
     def test_codex(self):
@@ -450,32 +632,46 @@ class PluginEndToEndTests(unittest.TestCase):
             "--usageboard-param", "STAT_PERIOD=7d",
         ])
         self.assertEqual(out["schemaVersion"], 1)
-        self.assertEqual(len(out["items"]), 1)
+        self.assertEqual(len(out["items"]), 3)
+        self.assertTrue(out["items"][0]["id"].endswith("-total"))
+        self.assertTrue(all("-model-" in item["id"] for item in out["items"][1:]))
 
     def test_daily_overview(self):
         out = self._run("daily-overview-plugin.py", [
             "--usageboard-param", f"CLAUDE_DIR={self.paths['claude']}",
             "--usageboard-param", f"GEMINI_DIR={self.paths['gemini']}",
             "--usageboard-param", f"CODEX_DIR={self.paths['codex']}",
+            "--usageboard-param", "SHOW_CLAUDE_QUOTA=off",
         ])
         self.assertEqual(out["schemaVersion"], 1)
-        # daily-overview 只显示今日：无 chart / dimensions / defaultDimension
-        self.assertNotIn("chart", out)
-        self.assertNotIn("dimensions", out)
-        self.assertNotIn("defaultDimension", out)
-        self.assertNotIn("dimensionOrder", out)
-        # 三家都有今日 token；overview 列表默认只展开 Top 5，其余合并为 Other。
-        self.assertEqual(len(out["items"]), 7)
-        self.assertEqual(out["items"][-1]["id"], "overview-other-models")
-        self.assertIn("Other 1 model", out["items"][-1]["name"])
-        self.assertIn("billable", out["items"][0]["name"])
-        model_names = [item["name"] for item in out["items"][1:-1]]
-        self.assertTrue(any(name.startswith("Claude ·") for name in model_names))
-        self.assertTrue(any(name.startswith("Gemini ·") for name in model_names))
-        self.assertTrue(any(name.startswith("OpenAI ·") for name in model_names))
-        self.assertFalse(any("Claude · claude-" in name for name in model_names))
-        self.assertIn("trailingText", out["items"][0])
+        self.assertIn("chart", out)
+        self.assertIn("dimensions", out)
+        self.assertEqual(set(out["dimensions"].keys()), {"today", "7d", "30d", "90d", "all"})
+        self.assertEqual(out["defaultDimension"], "30d")
+        self.assertEqual(out["dimensionOrder"], ["today", "7d", "30d", "90d", "all"])
+        self.assertEqual(out["items"], out["dimensions"]["30d"]["items"])
+        # 总览只按 provider 汇总（Claude/Gemini/Codex 各一行），模型明细在各 CLI 卡。
+        self.assertEqual(len(out["items"]), 3)
+        self.assertEqual({item["id"] for item in out["items"]},
+                         {"overview-provider-claude", "overview-provider-gemini",
+                          "overview-provider-codex"})
+        self.assertEqual({item["name"] for item in out["items"]},
+                         {"Claude", "Gemini", "Codex"})
+        used = [item["used"] for item in out["items"]]
+        self.assertEqual(used, sorted(used, reverse=True), "provider 行按 token 降序")
+        self.assertTrue(all("trailingText" in item for item in out["items"]))
+        # 没有满格总量行；周期总量改放 dimension badge
+        self.assertNotIn("overview-period-total", [item["id"] for item in out["items"]])
+        self.assertIn("badge", out["dimensions"]["30d"])
+        self.assertEqual(out["badge"], out["dimensions"]["30d"]["badge"])
+        # 额度关掉时不应有账号 subtitle 和额度行
+        self.assertNotIn("subtitle", out)
+        self.assertFalse([i for i in out["items"] if i["id"].startswith("claude-quota-")])
         self.assertIn("openai.png", out.get("iconURL", ""))
+        # 每个有用量的维度带自己的 top-provider 图标，前端图标跟随周期切换
+        self.assertIn("openai.png", out["dimensions"]["30d"].get("iconURL", ""))
+        # 非额度行一律中性蓝，不做红橙告警色
+        self.assertTrue(all(item["color"] == "blue" for item in out["items"]))
         self.assertNotIn("providerTotals", out)
 
     def test_daily_overview_handles_missing_provider_dir(self):
@@ -484,9 +680,12 @@ class PluginEndToEndTests(unittest.TestCase):
             "--usageboard-param", f"CLAUDE_DIR={self.paths['claude']}",
             "--usageboard-param", "GEMINI_DIR=/nonexistent/path/xx",
             "--usageboard-param", f"CODEX_DIR={self.paths['codex']}",
+            "--usageboard-param", "SHOW_CLAUDE_QUOTA=off",
         ])
         self.assertEqual(out["schemaVersion"], 1)
         self.assertGreater(len(out["items"]), 0)
+        self.assertNotIn("overview-provider-gemini",
+                         [item["id"] for item in out["items"]])
 
     def test_dimensions_per_cli_plugin(self):
         """每个 per-CLI plugin 输出含 4 个 dimension + 正确 bucketUnit 与桶数。"""

@@ -122,7 +122,7 @@ def parse_gemini_file(fp: str) -> dict[str, dict[str, dict[str, int]]]:
 def parse_codex_file(fp: str) -> dict[str, dict[str, dict[str, int]]]:
     out: dict[str, dict[str, dict[str, int]]] = {}
     current_model: str | None = None
-    prev_total = 0.0
+    highwater_total = 0.0
     first = True
     try:
         with open(fp, encoding="utf-8", errors="replace") as fh:
@@ -153,8 +153,14 @@ def parse_codex_file(fp: str) -> dict[str, dict[str, dict[str, int]]]:
                     if not isinstance(total_tokens, (int, float)):
                         continue
                     total_tokens = float(total_tokens)
-                    delta = total_tokens if first else max(total_tokens - prev_total, 0)
-                    prev_total = total_tokens
+                    if first:
+                        delta = total_tokens
+                        highwater_total = total_tokens
+                    elif total_tokens > highwater_total:
+                        delta = total_tokens - highwater_total
+                        highwater_total = total_tokens
+                    else:
+                        delta = 0
                     first = False
                     if delta <= 0:
                         continue
@@ -201,20 +207,14 @@ def list_codex_files(data_dir: str, start_date: date) -> list[str]:
         files.extend(glob.glob(pat, recursive=True))
     s = start_date.strftime("%Y-%m-%d")
     today = date.today().strftime("%Y-%m-%d")
+    cutoff_ts = (datetime.combine(start_date, time.min).astimezone()
+                 - timedelta(days=2)).timestamp()
     out: list[str] = []
     for f in files:
         m = _CODEX_FILENAME_DATE.search(os.path.basename(f))
-        if m:
-            d = m.group(1)
-            if s <= d <= today:
-                out.append(f)
-        else:
-            try:
-                mt = datetime.fromtimestamp(os.path.getmtime(f)).date().strftime("%Y-%m-%d")
-                if s <= mt <= today:
-                    out.append(f)
-            except OSError:
-                pass
+        filename_in_window = bool(m and s <= m.group(1) <= today)
+        if filename_in_window or mtime_within(f, cutoff_ts):
+            out.append(f)
     return out
 
 

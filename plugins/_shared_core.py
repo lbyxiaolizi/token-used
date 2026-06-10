@@ -6,12 +6,12 @@ from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
 
 SCHEMA_VERSION = 1
-CACHE_VERSION = 1
+CACHE_VERSION = 2
 
 PARSER_VERSIONS = {
     "claude": "v2",  # v2: byBucket value 改为 {"raw": N, "billable": N}
     "gemini": "v2",
-    "codex": "v2",
+    "codex": "v3",  # v3: total_token_usage 用高水位增量，避免累计值回落后重复计数
 }
 
 TOKEN_MODES = ("billable", "raw")
@@ -20,7 +20,7 @@ DEFAULT_TOKEN_MODE = "billable"
 PERIODS = ("today", "7d", "30d", "90d", "all")
 DEFAULT_PERIOD = "30d"
 
-CACHE_PRUNE_DAYS = 45  # cache 中超过该天数无活动的文件 entry 会被清理
+CACHE_PRUNE_DAYS = 400  # 覆盖 12 个月 all 视图，并给时区/月底留余量
 
 TRANSLATIONS: dict[str, dict[str, str]] = {
     "no_data": {"en": "No stats data available", "zh-Hans": "暂无可用统计数据"},
@@ -40,6 +40,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "mode_raw": {"en": "raw", "zh-Hans": "原始"},
     "other_model": {"en": "Other {count} model", "zh-Hans": "其他 {count} 个模型"},
     "other_models": {"en": "Other {count} models", "zh-Hans": "其他 {count} 个模型"},
+    "quota_5h": {"en": "Claude 5h limit", "zh-Hans": "Claude 5h 额度"},
+    "quota_week": {"en": "Claude weekly", "zh-Hans": "Claude 周额度"},
 }
 
 

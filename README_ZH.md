@@ -26,10 +26,10 @@
 
 ## ✨ 特性
 
-- **不依赖任何远程 API**——完全离线读本地 JSONL/JSON 会话文件，**不需要 ChatGPT 订阅 token**。
+- **本地数据为主**——token 统计完全离线读本地 JSONL/JSON 会话文件，**不需要 ChatGPT 订阅 token**；唯一可选的远程调用是 Claude 账号额度查询（默认开，可用 `SHOW_CLAUDE_QUOTA=off` 关闭）。
+- **Claude 账号额度上顶**——总览卡顶部显示官方账号的 5 小时额度和周额度（带真实重置时间），标题下方显示账号邮箱；读不到 OAuth 凭据（纯 API key / 中转渠道）时整块自动隐藏。
 - **三家 CLI 一个面板**——Claude Code / Gemini CLI / Codex CLI 用量按模型聚合。
-- **今日总览 + 单 CLI 多周期图表**——今日总览卡片只显示今日三家聚合数据；单 CLI 卡片有面板内 segmented 切换 `today` / `7d` / `30d` / `90d` / `all`，下方堆叠图按模型分段。
-- **总览行更清爽**——今日总览只展开 Top 5 模型，其余折叠为 `其他`，模型行会尽量标出来源/provider。
+- **全局多周期筛选 + 分层明细**——顶部 segmented 切换 `today` / `7d` / `30d` / `90d` / `all`；用量总览按 provider（Claude/Gemini/Codex）各一行汇总占比，周期总量放标题 badge，模型明细在各 CLI 卡片里；单 CLI 卡片跟随同一个周期。
 - **token 口径更清楚**——Claude 支持 `billable` / `raw` 两种口径，Codex/Gemini 保持各自上报 token 语义。
 - **安装辅助 CLI**——`tokenused doctor`、`sync-plugins`、`install-config`、`smoke` 让安装和排错可重复。
 - **空数据自动隐藏**——某 CLI 从没用过（如 Gemini），它的 panel 自动消失。
@@ -147,10 +147,10 @@ sed "s|__HOME__|$HOME|g" examples/config.example.json > "$HOME/Library/Applicati
 | 文件 | 修改 | 原因 |
 |---|---|---|
 | `Package.swift` | `swift-tools-version: 6.3` → `6.2` | 让 Swift 6.2 toolchain 能构建 |
-| `Sources/UsageBoardApp/DashboardView.swift` | `.onAppear` 加 `store.refreshAll()`，加 `visiblePlugins`，加面板内 segmented period picker（**仅单 CLI 卡片**，今日总览强制 today only），badge 渲染走 `PlanTag(size: 14)`，并调整长标题布局 | 每次开面板自动刷新；空数据 CLI 自动隐藏；单 CLI 卡片周期切换不重跑插件；token badge 醒目；长模型名和大数字不被截断 |
-| `Sources/UsageBoardApp/UsageBoardStore.swift` | 缓存读写保留 `iconURL` / `dimensions` / `defaultDimension` / `dimensionOrder` | 重启后仍能保留动态图标和多周期数据 |
-| `Sources/UsageBoardCore/Models.swift` | `PluginOutput` / `PluginSnapshot` / `PluginCachedState` 支持 `dimensions`、`defaultDimension`、`dimensionOrder`、`iconURL`，`UsageItem` 支持 `trailingText`；`hasNoUsageItems` **只看默认维度** 是否为空（没有 default 时退回"所有维度都空"） | 让插件一次输出多周期数据；允许插件动态覆盖图标；右列显示 token 数；默认维度没有数据的 CLI 会被自动隐藏，即使更长周期里还残留历史用量 |
-| `Sources/UsageBoardCore/PluginExecutor.swift` | 默认 timeout `15s` → `180s`，并优先使用 plugin 输出的 `iconURL` | 冷启动扫描大目录时不易超时；用量总览可显示当前主导 provider 图标 |
+| `Sources/UsageBoardApp/DashboardView.swift` | `.onAppear` 加 `store.refreshAll()`，加 `visiblePlugins`，加顶部全局 segmented period picker（`@AppStorage("usageboard.period.global")`），所有含 `dimensions` 的卡片跟随同一个周期；badge 渲染走 `PlanTag(size: 14)`，并调整长标题布局；badge / 卡片图标优先取当前维度的 `badge` / `iconURL`；标题下渲染 `subtitle`（账号邮箱），点击复制、悬浮 tooltip 显示完整内容 | 每次开面板自动刷新；空数据 CLI 自动隐藏；总览和单 CLI 卡片用同一个周期切换且不重跑插件；token badge 醒目；badge 与主导 provider 图标跟随周期切换；账号信息可见可复制 |
+| `Sources/UsageBoardApp/UsageBoardStore.swift` | 缓存读写保留 `iconURL` / `dimensions` / `defaultDimension` / `dimensionOrder` / `subtitle` | 重启后仍能保留动态图标、多周期数据和账号信息 |
+| `Sources/UsageBoardCore/Models.swift` | `PluginOutput` / `PluginSnapshot` / `PluginCachedState` 支持 `dimensions`、`defaultDimension`、`dimensionOrder`、`iconURL`、`subtitle`，`PluginDimension` 支持每维度 `badge` / `iconURL`，`UsageItem` 支持 `trailingText`；percent 显示未到 100% 时封顶 99%；`hasNoUsageItems` **只看默认维度** 是否为空（没有 default 时退回"所有维度都空"） | 让插件一次输出多周期数据；允许插件动态覆盖图标和标题副标题；右列显示 token 数；99.8% 不再被四舍五入成误导性的 100%；默认维度没有数据的 CLI 会被自动隐藏，即使更长周期里还残留历史用量 |
+| `Sources/UsageBoardCore/PluginExecutor.swift` | 默认 timeout `15s` → `180s`，并优先使用 plugin 输出的 `iconURL`，透传 `subtitle` | 冷启动扫描大目录时不易超时；用量总览可显示当前主导 provider 图标和账号邮箱 |
 | `Sources/UsageBoardApp/DesignSystem/UBDesignTokens.swift` | `canvasBackground` 从写死 RGB `(0.961, 0.961, 0.969)` → `Color(nsColor: .windowBackgroundColor)` | 卡片之间的 canvas 背景跟随明暗模式，不再固定为浅色 |
 | `Sources/UsageBoardApp/DesignSystem/PlanTag.swift` | 加 `size` 参数（默认 `9.5` 保持上游 `PRO`/`PLUS` 订阅标签字号不变），padding / 圆角随 size 等比缩放，加 `monospacedDigit()`；默认配色从 `gray.opacity(0.16)` + `.secondary` → `primary.opacity(0.10)` + `primary.opacity(0.85)` | token 数 badge 可以用 size `14` 渲染做大显眼，暗色模式下也清晰可读（之前是浅灰底 + 浅灰字几乎隐形） |
 | `Sources/UsageBoardApp/DesignSystem/BrandTile.swift` | 加载完 logo 图片后在背后铺一层 `Color.white` 圆角填充并加大内 padding；stroke 透明度 `0.06` → `0.10` | 暗色面板下黑色 logo（如 lobe-icons 的 OpenAI PNG）保持清晰；彩色 logo 在白底瓦片上同样好看 |
@@ -178,15 +178,17 @@ Homebrew 安装后使用 `tokenused <command>`；手动 clone 后在仓库内使
 
 四个插件的所有参数都从 UsageBoard 设置面板读取，默认值开箱即用。需要时再覆写。
 
-### 今日总览 (`daily-overview-plugin.py`)
+### 用量总览 (`daily-overview-plugin.py`)
 
-聚合三家 CLI 当天用量。**仅显示今日**——卡片内无 period 切换（要切周期请用单 CLI 卡片）。
+按周期聚合三家 CLI 的用量。插件一次输出全部 5 个 period，UsageBoard 顶部的全局 period 切换会直接控制总览和单 CLI 卡片。
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
 | `CLAUDE_DIR` | `~/.claude/projects` | Claude Code 会话 JSONL 目录 |
 | `GEMINI_DIR` | `~/.gemini/tmp` | Gemini CLI `session-*.json` 目录 |
 | `CODEX_DIR` | `~/.codex` | Codex CLI 根目录（扫 `sessions/` + `archived_sessions/`） |
+| `STAT_PERIOD` | `30d` | 默认周期：`today` / `7d` / `30d` / `90d` / `all` |
+| `SHOW_CLAUDE_QUOTA` | `on` | 总览卡顶部显示 Claude 官方账号 5 小时/周额度与账号邮箱。读取本机 Claude Code OAuth 凭据（Keychain 或 `~/.claude/.credentials.json`）调用官方 `oauth/usage` 接口，结果缓存 120 秒、失败时用 30 分钟内旧缓存兜底；读不到凭据或接口返回 401（纯 API key / 中转渠道）时整块自动隐藏。设为 `off` 可彻底关闭这唯一的远程调用 |
 | `TOKEN_MODE` | `billable` | `billable`（input+output+cache_creation，与 Claude Code `/cost` 一致）或 `raw`（再加上 `cache_read_input_tokens` 命中——通常占总量 ~95%） |
 
 ### 单 CLI 插件（`claude-code-usage-plugin.py`、`gemini-cli-usage-plugin.py`、`codex-local-usage-plugin.py`）
@@ -197,19 +199,19 @@ Homebrew 安装后使用 `tokenused <command>`；手动 clone 后在仓库内使
 | `STAT_PERIOD` | `30d` | 默认周期：`today` / `7d` / `30d` / `90d` / `all` |
 | `TOKEN_MODE`（仅 Claude） | `billable` | 同用量总览。对 Codex/Gemini 面板无效（它们的 token 报告里没有 cache_read 概念） |
 
-> **面板内 segmented 切换**：每个**单 CLI** plugin 输出 `dimensions` 字段含全部 5 个 period 的预算数据，所以首次扫描完缓存后（~30s），点 `今日 ↔ 7d ↔ 30d ↔ 90d ↔ 全部` 立即切换——无需 spawn plugin、无需重 parse。选择通过 `@AppStorage("usageboard.period.<pluginID>")` 按 plugin 持久化。今日总览刻意不带这个切换，永远显示今日。
+> **全局 segmented 切换**：总览和每个单 CLI plugin 都输出 `dimensions` 字段含全部 5 个 period，所以首次扫描完缓存后（~30s），点 `今日 ↔ 7d ↔ 30d ↔ 90d ↔ 全部` 会同时切换所有卡片——无需 spawn plugin、无需重 parse。选择通过 `@AppStorage("usageboard.period.global")` 全局持久化。
 
 > **为什么有两种口径？** Claude 的 `usage` 把每次 prompt cache 命中都按 `cache_read_input_tokens` 计入。tool 用得多时 raw 总数会比真正按账单算的高 100×+。`billable` 对齐 Anthropic 计费四件套（`input + output + cache_creation`）；切换只在 cache 内做投影，不会触发重 parse。
 
-> **总览模型行**：今日总览展示今日 Top 5 模型，其余模型折叠为 `其他`。模型名会尽量保留来源数据里的具体名称；可判断来源时，会在行内尽量补上来源/provider 提示。
+> **总览信息分层**：用量总览顶部是 Claude 账号额度区（可关），下方按 provider（Claude / Gemini / Codex）各一行占比汇总，周期总量放在标题旁的 badge；逐模型明细在各单 CLI 卡片里。卡片图标显示当前周期用量最大的 provider，跟随周期切换。
 
 自定义路径：UsageBoard → 菜单栏图标 → 齿轮 → **插件** → 点插件 → 调参数。无需重启。
 
 ### 进度条配色含义
 
-四个插件的进度条**颜色规则不一样**，是设计如此：
-- **用量总览**：颜色按"该模型占今日总量的百分比"——红≥50%、橙≥25%、蓝<25%
-- **单 CLI**：颜色按"今天用量 ÷ 期内峰值日"——红≥100%（破峰）、橙≥80%、蓝<80%
+颜色只承载"额度告警"语义，避免误读：
+- **Claude 额度行**：蓝 < 60%、橙 ≥ 60%、红 ≥ 85%，右侧列显示真实重置时间
+- **provider 行 / 模型行 / 总量行**：一律中性蓝（它们是占比展示，不是告警），右侧列显示 token 数
 
 ---
 
@@ -220,12 +222,12 @@ TokenUsed/
 ├── bin/
 │   └── tokenused                         # 安装/排错辅助 CLI
 ├── plugins/                            # UsageBoard Python 插件
-│   ├── daily-overview-plugin.py        # ⭐ 用量总览（三家聚合，按模型分行 + 7 天柱状图）
+│   ├── daily-overview-plugin.py        # ⭐ 用量总览（三家聚合，按周期和模型分行）
 │   ├── claude-code-usage-plugin.py     # Claude Code 单独面板
 │   ├── gemini-cli-usage-plugin.py      # Gemini CLI 单独面板
 │   ├── codex-local-usage-plugin.py     # Codex CLI 单独面板
 │   ├── _shared.py                      # 兼容门面：插件入口继续从这里 import
-│   └── _shared_*.py                    # 私有共享模块（core/cache/parsers/builders）
+│   └── _shared_*.py                    # 私有共享模块（core/cache/parsers/builders/quota）
 ├── patches/
 │   └── usageboard-build-and-refresh.patch  # UsageBoard UI / schema / executor 增强补丁
 ├── examples/
