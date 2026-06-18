@@ -21,6 +21,7 @@ PLUGINS = REPO_ROOT / "plugins"
 sys.path.insert(0, str(PLUGINS))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _shared  # noqa: E402
+import _shared_parsers  # noqa: E402
 from _fixture_gen import generate as gen_fixtures  # noqa: E402
 
 
@@ -149,7 +150,8 @@ class ParserTests(unittest.TestCase):
         self.assertNotIn("no-tokens", bag)
 
     def test_codex(self):
-        fp = next((self.paths["codex"] / "sessions").rglob("*.jsonl"))
+        fp = next(p for p in (self.paths["codex"] / "sessions").rglob("*.jsonl")
+                  if "test123" in p.name)
         out = _shared.parse_codex_file(str(fp))
         today_id = self.today.isoformat()
         self.assertIn(today_id, out)
@@ -157,6 +159,32 @@ class ParserTests(unittest.TestCase):
         # gpt-5.5 第一次 100 + 第二次 200 = 300; gpt-5.5-codex 第三次 200
         self.assertEqual(bag.get("gpt-5.5"), {"raw": 300, "billable": 300})
         self.assertEqual(bag.get("gpt-5.5-codex"), {"raw": 200, "billable": 200})
+
+    def test_codex_scan_deduplicates_same_session_rollouts(self):
+        _by_bucket, totals, _meta, _unit = _shared.scan_codex(
+            str(self.paths["codex"]), "7d", cache_root=self.scratch / "cache")
+
+        self.assertEqual(totals.get("gpt-5.5"), 300)
+        self.assertEqual(totals.get("gpt-5.5-codex"), 400)
+
+    def test_codex_scan_reuses_event_cache(self):
+        cache_root = self.scratch / "cache"
+        _shared.scan_codex(str(self.paths["codex"]), "7d", cache_root=cache_root)
+        self.assertTrue(list(cache_root.glob("codex-events-*.cache.json")))
+
+        original = _shared_parsers._read_codex_file
+        try:
+            def fail_if_reparsed(_fp):
+                raise AssertionError("unchanged Codex files should be served from cache")
+
+            _shared_parsers._read_codex_file = fail_if_reparsed
+            _by_bucket, totals, _meta, _unit = _shared.scan_codex(
+                str(self.paths["codex"]), "7d", cache_root=cache_root)
+        finally:
+            _shared_parsers._read_codex_file = original
+
+        self.assertEqual(totals.get("gpt-5.5"), 300)
+        self.assertEqual(totals.get("gpt-5.5-codex"), 400)
 
     def test_codex_parser_uses_highwater_when_total_counter_drops(self):
         fp = self.scratch / "codex-counter-drop.jsonl"
@@ -552,7 +580,7 @@ class CacheRoundtripTests(unittest.TestCase):
         today_id = date.today().isoformat()
         opus_b = (out_b.get(today_id) or {}).get("claude-opus-4-7") or 0
         opus_r = (out_r.get(today_id) or {}).get("claude-opus-4-7") or 0
-        # opus 出现两次：今日 input=12+output=34+cc=5+cr=7（raw 58, billable 51）
+        # opus 重复 message id 只计一次：input=12+output=34+cc=5+cr=7（raw 58, billable 51）
         # 加上昨天那条 input=10+output=20（无 cache，raw 30, billable 30，但不在今日桶）
         self.assertEqual(opus_r, 58)
         self.assertEqual(opus_b, 51)

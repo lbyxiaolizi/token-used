@@ -9,9 +9,9 @@ SCHEMA_VERSION = 1
 CACHE_VERSION = 2
 
 PARSER_VERSIONS = {
-    "claude": "v2",  # v2: byBucket value 改为 {"raw": N, "billable": N}
+    "claude": "v3",  # v3: 按 message.id 去重重复 assistant usage 行
     "gemini": "v2",
-    "codex": "v3",  # v3: total_token_usage 用高水位增量，避免累计值回落后重复计数
+    "codex": "v3",  # v3: total_token_usage 用 session 高水位增量
 }
 
 TOKEN_MODES = ("billable", "raw")

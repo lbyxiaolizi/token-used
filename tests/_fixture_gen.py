@@ -42,19 +42,26 @@ def generate(target_root: Path, today: date | None = None) -> dict[str, Path]:
         {"type": "user", "message": {"role": "user", "content": "hi"},
          "timestamp": _iso(today_dt)},
         {"type": "assistant",
-         "message": {"role": "assistant", "model": "claude-opus-4-7",
+         "message": {"id": "msg-opus-today", "role": "assistant", "model": "claude-opus-4-7",
                      "content": "hello",
                      "usage": {"input_tokens": 12, "output_tokens": 34,
                                "cache_creation_input_tokens": 5,
                                "cache_read_input_tokens": 7}},
          "timestamp": _iso(today_dt + timedelta(seconds=5))},
         {"type": "assistant",
-         "message": {"role": "assistant", "model": "claude-sonnet-4-6",
+         "message": {"id": "msg-opus-today", "role": "assistant", "model": "claude-opus-4-7",
+                     "content": [{"type": "text", "text": "hello"}],
+                     "usage": {"input_tokens": 12, "output_tokens": 34,
+                               "cache_creation_input_tokens": 5,
+                               "cache_read_input_tokens": 7}},
+         "timestamp": _iso(today_dt + timedelta(seconds=5))},
+        {"type": "assistant",
+         "message": {"id": "msg-sonnet-today", "role": "assistant", "model": "claude-sonnet-4-6",
                      "content": "second",
                      "usage": {"input_tokens": 100, "output_tokens": 200}},
          "timestamp": _iso(today_dt + timedelta(hours=1))},
         {"type": "assistant",
-         "message": {"role": "assistant", "model": "claude-opus-4-7",
+         "message": {"id": "msg-opus-yesterday", "role": "assistant", "model": "claude-opus-4-7",
                      "content": "yesterday",
                      "usage": {"input_tokens": 10, "output_tokens": 20}},
          "timestamp": _iso(yest_dt)},
@@ -97,6 +104,8 @@ def generate(target_root: Path, today: date | None = None) -> dict[str, Path]:
     codex_filename = f"rollout-{today.strftime('%Y-%m-%d')}T10-00-00-test123.jsonl"
     codex_file = codex_dir / codex_filename
     codex_lines = [
+        {"type": "session_meta",
+         "payload": {"id": "codex-session-001", "timestamp": _iso(today_dt)}},
         {"type": "turn_context",
          "payload": {"model": "gpt-5.5", "timestamp": _iso(today_dt)}},
         {"type": "token_count",
@@ -119,9 +128,35 @@ def generate(target_root: Path, today: date | None = None) -> dict[str, Path]:
         for ln in codex_lines:
             fh.write(json.dumps(ln, ensure_ascii=False) + "\n")
 
+    codex_resume = codex_dir / f"rollout-{today.strftime('%Y-%m-%d')}T11-00-00-test456.jsonl"
+    codex_resume_lines = [
+        {"type": "session_meta",
+         "payload": {"id": "codex-session-001", "timestamp": _iso(today_dt + timedelta(hours=1))}},
+        {"type": "turn_context",
+         "payload": {"model": "gpt-5.5", "timestamp": _iso(today_dt + timedelta(hours=1))}},
+        {"type": "token_count",
+         "payload": {"type": "token_count",
+                     "timestamp": _iso(today_dt + timedelta(hours=1, seconds=5)),
+                     "info": {"total_token_usage": {"total_tokens": 100}}}},
+        {"type": "token_count",
+         "payload": {"type": "token_count",
+                     "timestamp": _iso(today_dt + timedelta(hours=1, seconds=10)),
+                     "info": {"total_token_usage": {"total_tokens": 300}}}},
+        {"type": "turn_context",
+         "payload": {"model": "gpt-5.5-codex",
+                     "timestamp": _iso(today_dt + timedelta(hours=1, seconds=20))}},
+        {"type": "token_count",
+         "payload": {"type": "token_count",
+                     "timestamp": _iso(today_dt + timedelta(hours=1, seconds=30)),
+                     "info": {"total_token_usage": {"total_tokens": 700}}}},
+    ]
+    with open(codex_resume, "w", encoding="utf-8") as fh:
+        for ln in codex_resume_lines:
+            fh.write(json.dumps(ln, ensure_ascii=False) + "\n")
+
     # 刷新 mtime 到 today（确保 mtime 预过滤通过）
     now_ts = datetime.now().timestamp()
-    for p in (claude_file, gemini_file, codex_file):
+    for p in (claude_file, gemini_file, codex_file, codex_resume):
         os.utime(p, (now_ts, now_ts))
 
     return {
